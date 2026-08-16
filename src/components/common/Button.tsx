@@ -8,17 +8,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 export default function Button({
   children,
   variant = "primary",
+  className = "",
   ...props
 }: ButtonProps) {
   const styles = {
-    primary:
-      "bg-green-700 hover:bg-green-800 text-white",
-
-    secondary:
-      "bg-white border border-green-700 text-green-700 hover:bg-green-50",
-
-    danger:
-      "bg-red-600 hover:bg-red-700 text-white",
+    primary: "bg-green-700 hover:bg-green-800 text-white",
+    secondary: "bg-white border border-green-700 text-green-700 hover:bg-green-50",
+    danger: "bg-red-600 hover:bg-red-700 text-white",
   };
 
   return (
@@ -33,6 +29,7 @@ export default function Button({
         duration-300
         shadow-md
         ${styles[variant]}
+        ${className}
       `}
     >
       {children}

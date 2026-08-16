@@ -3,6 +3,8 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import ResidentDashboard from "./pages/resident/Dashboard";
 import AdminDashboard from "./pages/admin/Dashboard";
+import SubmitReport from "./pages/resident/ReportIssue";
+import MyReport from "./pages/resident/MyReport";
 
 function App() {
   return (
@@ -11,11 +13,9 @@ function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/dashboard" element={<ResidentDashboard />} />
       <Route path="/admin/dashboard" element={<AdminDashboard />} />
-
-      {/* Redirect the root path to login */}
+      <Route path="/report/new" element={<SubmitReport />} />
+      <Route path="/reports" element={<MyReport />} />
       <Route path="/" element={<Navigate to="/login" replace />} />
-
-      {/* Catch-all for unknown routes */}
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

@@ -1,176 +1,239 @@
 import { useState } from "react";
-import { supabase } from "../../lib/supabase";
+import { useNavigate, Link } from "react-router-dom";
+import Logo from "../../components/common/Logo";
+import Card from "../../components/common/Card";
+import Input from "../../components/common/Input";
+import Button from "../../components/common/Button";
+import AuthMethodTabs, {
+  type AuthMethod,
+} from "../../pages/auth/AuthMethodTabs";
+import {
+  registerWithEmail,
+  sendPhoneOtp,
+  verifyPhoneOtp,
+} from "../../lib/authHelpers";
 
 export default function Register() {
+  const navigate = useNavigate();
+
+  const [method, setMethod] = useState<AuthMethod>("email");
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
 
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-
-  const handleRegister = async (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
-    e.preventDefault();
-
-    console.log("REGISTER BUTTON WORKED");
-
-    setLoading(true);
-    setMessage("");
+  function switchMethod(next: AuthMethod) {
+    setMethod(next);
     setErrorMessage("");
+    setSuccessMessage("");
+    setOtpSent(false);
+    setOtpCode("");
+  }
+
+  async function handleEmailRegister(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMessage("");
+    setSuccessMessage("");
 
     try {
-      console.log("Calling Supabase...");
+      const result = await registerWithEmail(fullName, email, password);
 
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          data: {
-            full_name: fullName.trim(),
-          },
-        },
-      });
-
-      console.log("Supabase response:", data);
-
-      if (error) {
-        console.error("Supabase error:", error);
-        throw error;
-      }
-
-      console.log("Registration request successful.");
-
-      setMessage(
-        data.session
+      setSuccessMessage(
+        result.session
           ? "Account created successfully!"
           : "Account created! Please check your email to confirm your account."
       );
-
       setFullName("");
       setEmail("");
       setPassword("");
     } catch (error) {
       console.error("Registration failed:", error);
-
-      if (error instanceof Error) {
-        setErrorMessage(error.message);
-      } else {
-        setErrorMessage("Registration failed. Please try again.");
-      }
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Registration failed. Please try again."
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  async function handleSendOtp(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await sendPhoneOtp(phone, fullName);
+      setOtpSent(true);
+      setSuccessMessage(`Code sent to ${phone}. Enter it below.`);
+    } catch (error) {
+      console.error("Failed to send OTP:", error);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Couldn't send verification code. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyOtp(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMessage("");
+
+    try {
+      await verifyPhoneOtp(phone, otpCode);
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("OTP verification failed:", error);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Invalid or expired code. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-5">
-      <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-green-800">
-            Create Account
-          </h1>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-5">
+      <Card>
+        <Logo size="lg" />
 
-          <p className="mt-2 text-gray-500">
-            Register as a CERMS resident
-          </p>
+        <p className="mt-4 text-center text-sm text-gray-500">
+          Register as a CERMS resident
+        </p>
+
+        <div className="mt-6">
+          <AuthMethodTabs active={method} onChange={switchMethod} />
         </div>
 
-        <form onSubmit={handleRegister} className="mt-8 space-y-5">
-          {/* Full Name */}
-          <div>
-            <label
-              htmlFor="fullName"
-              className="mb-2 block text-sm font-semibold text-slate-700"
-            >
-              Full Name
-            </label>
-
-            <input
-              id="fullName"
+        {/* EMAIL REGISTRATION */}
+        {method === "email" && (
+          <form onSubmit={handleEmailRegister} className="mt-6 space-y-5">
+            <Input
+              label="Full Name"
               type="text"
+              placeholder="Enter your full name"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="Enter your full name"
               autoComplete="name"
               required
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-green-700 focus:ring-4 focus:ring-green-100"
             />
-          </div>
 
-          {/* Email */}
-          <div>
-            <label
-              htmlFor="email"
-              className="mb-2 block text-sm font-semibold text-slate-700"
-            >
-              Email
-            </label>
-
-            <input
-              id="email"
+            <Input
+              label="Email"
               type="email"
+              placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
               autoComplete="email"
               required
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-green-700 focus:ring-4 focus:ring-green-100"
             />
-          </div>
 
-          {/* Password */}
-          <div>
-            <label
-              htmlFor="password"
-              className="mb-2 block text-sm font-semibold text-slate-700"
-            >
-              Password
-            </label>
-
-            <input
-              id="password"
+            <Input
+              label="Password"
               type="password"
+              placeholder="Create a password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Create a password"
               autoComplete="new-password"
               minLength={6}
               required
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-green-700 focus:ring-4 focus:ring-green-100"
             />
 
-            <p className="mt-1 text-xs text-gray-500">
-              Password must contain at least 6 characters.
-            </p>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Creating account..." : "Create Account"}
+            </Button>
+          </form>
+        )}
+
+        {/* PHONE REGISTRATION */}
+        {method === "phone" && !otpSent && (
+          <form onSubmit={handleSendOtp} className="mt-6 space-y-5">
+            <Input
+              label="Full Name"
+              type="text"
+              placeholder="Enter your full name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              autoComplete="name"
+              required
+            />
+
+            <Input
+              label="Mobile Number"
+              type="tel"
+              placeholder="09XX XXX XXXX"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              autoComplete="tel"
+              required
+            />
+
+            <Button type="submit" disabled={loading}>
+              {loading ? "Sending code..." : "Send Verification Code"}
+            </Button>
+          </form>
+        )}
+
+        {method === "phone" && otpSent && (
+          <form onSubmit={handleVerifyOtp} className="mt-6 space-y-5">
+            <Input
+              label="Verification Code"
+              type="text"
+              inputMode="numeric"
+              placeholder="Enter 6-digit code"
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value)}
+              maxLength={6}
+              required
+            />
+
+            <Button type="submit" disabled={loading}>
+              {loading ? "Verifying..." : "Verify & Create Account"}
+            </Button>
+
+            <button
+              type="button"
+              onClick={() => setOtpSent(false)}
+              className="w-full text-center text-sm text-green-700 hover:underline"
+            >
+              Use a different number
+            </button>
+          </form>
+        )}
+
+        {successMessage && (
+          <div className="mt-5 rounded-xl bg-green-50 p-4 text-center text-sm text-green-800">
+            {successMessage}
           </div>
+        )}
 
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-green-700 py-3 font-semibold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? "Creating account..." : "Create Account"}
-          </button>
+        {errorMessage && (
+          <div className="mt-5 rounded-xl bg-red-50 p-4 text-center text-sm text-red-700">
+            {errorMessage}
+          </div>
+        )}
 
-          {/* Success message */}
-          {message && (
-            <div className="rounded-xl bg-green-50 p-4 text-center text-sm text-green-800">
-              {message}
-            </div>
-          )}
-
-          {/* Error message */}
-          {errorMessage && (
-            <div className="rounded-xl bg-red-50 p-4 text-center text-sm text-red-700">
-              {errorMessage}
-            </div>
-          )}
-        </form>
-      </div>
+        <p className="mt-6 text-center text-sm text-gray-500">
+          Already have an account?{" "}
+          <Link to="/login" className="font-semibold text-green-700 hover:underline">
+            Login
+          </Link>
+        </p>
+      </Card>
     </div>
   );
 }

@@ -17,6 +17,21 @@ export interface ReportRow {
   updated_at: string;
 }
 
+export interface ReportRow {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  status: ReportStatus;
+  severity: ReportSeverity | null;
+  latitude: number | null;
+  longitude: number | null;
+  image_url: string | null;
+  image_urls: string[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AdminReportRow extends ReportRow {
   reporter_name: string;
   reporter_email: string;
