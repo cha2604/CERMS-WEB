@@ -4,6 +4,9 @@ import { FiArrowLeft, FiCamera, FiX, FiMapPin } from "react-icons/fi";
 import { supabase } from "../../lib/supabase";
 import { submitReport } from "../../lib/ReportQueries";
 import Button from "../../components/common/Button";
+import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+
 
 const CATEGORIES = [
   "Illegal Dumping",
@@ -257,16 +260,35 @@ export default function SubmitReport() {
             </button>
           </div>
 
-          <div className="flex h-32 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm text-gray-500">
-            {coords ? (
-              <span>
-                Captured: {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
-              </span>
-            ) : (
-              <span>No location captured yet</span>
-            )}
-          </div>
-
+          {coords ? (
+            <div className="h-40 overflow-hidden rounded-xl border border-slate-200">
+              <MapContainer
+                center={[coords.lat, coords.lng]}
+                zoom={16}
+                className="h-full w-full"
+                dragging={false}
+                scrollWheelZoom={false}
+              >
+                <TileLayer
+                  attribution='&copy; OpenStreetMap contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <CircleMarker
+                  center={[coords.lat, coords.lng]}
+                  radius={10}
+                  pathOptions={{
+                    color: "#16a34a",
+                    fillColor: "#16a34a",
+                    fillOpacity: 0.85,
+                  }}
+                />
+              </MapContainer>
+            </div>
+          ) : (
+            <div className="flex h-32 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm text-gray-500">
+              No location captured yet
+            </div>
+          )}
           {locationError && (
             <p className="mt-2 text-xs text-red-600">{locationError}</p>
           )}
