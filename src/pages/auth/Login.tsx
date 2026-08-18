@@ -21,12 +21,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-
-  // Email fields
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  // Phone fields
   const [phone, setPhone] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
@@ -116,11 +112,16 @@ export default function Login() {
       <Card>
         <Logo size="lg" />
 
+        <h2 className="mt-1 text-center text-xl font-semibold text-green-700">
+  Login to your account
+        </h2>
+
+        <div className="mt-8 space-y-5"></div>
+
         <div className="mt-6">
           <AuthMethodTabs active={method} onChange={switchMethod} />
         </div>
 
-        {/* EMAIL LOGIN */}
         {method === "email" && (
           <form onSubmit={handleEmailLogin} className="mt-6 space-y-5">
             <Input
@@ -149,7 +150,6 @@ export default function Login() {
           </form>
         )}
 
-        {/* PHONE LOGIN */}
         {method === "phone" && !otpSent && (
           <form onSubmit={handleSendOtp} className="mt-6 space-y-5">
             <Input

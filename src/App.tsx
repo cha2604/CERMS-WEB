@@ -5,6 +5,9 @@ import ResidentDashboard from "./pages/resident/Dashboard";
 import AdminDashboard from "./pages/admin/Dashboard";
 import SubmitReport from "./pages/resident/ReportIssue";
 import MyReport from "./pages/resident/MyReport";
+import AdminReports from "./pages/admin/Reports";
+import AdminReportDetails from "./pages/admin/ReportDetails";
+import Profile from "./pages/resident/Profile";
 
 function App() {
   return (
@@ -17,6 +20,9 @@ function App() {
       <Route path="/reports" element={<MyReport />} />
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="/admin/reports" element={<AdminReports />} />
+      <Route path="/admin/reports/:id" element={<AdminReportDetails />} />
+      <Route path="/profile" element={<Profile />} />
     </Routes>
   );
 }

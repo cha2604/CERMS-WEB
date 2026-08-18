@@ -38,12 +38,6 @@ export default function Logo({ size = "md" }: LogoProps) {
       <h1 className={`mt-4 font-bold text-green-800 ${current.title}`}>
         CERMS
       </h1>
-
-      <p
-        className={`text-gray-500 text-center mt-2 max-w-xs ${current.subtitle}`}
-      >
-        Community Environmental Reporting and Monitoring System
-      </p>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { extractExif } from "./ExifHelper";
 
 export interface NewReportInput {
   userId: string;
@@ -7,14 +8,9 @@ export interface NewReportInput {
   contactNumber: string;
   latitude: number | null;
   longitude: number | null;
-  photos: File[]; // up to 5
+  photos: File[];
 }
 
-/**
- * Uploads photos to the `report-photos` storage bucket under
- * the user's own folder, then inserts the report row with the
- * resulting public URLs.
- */
 export async function submitReport(input: NewReportInput) {
   const { userId, category, description, contactNumber, latitude, longitude, photos } =
     input;
@@ -23,7 +19,6 @@ export async function submitReport(input: NewReportInput) {
     throw new Error("You can upload a maximum of 5 photos.");
   }
 
-  // 1. Upload each photo, collect public URLs
   const imageUrls: string[] = [];
 
   for (const photo of photos) {
@@ -44,9 +39,12 @@ export async function submitReport(input: NewReportInput) {
     imageUrls.push(publicUrlData.publicUrl);
   }
 
-  // 2. Insert the report row
-  // `title` is required by the schema but not shown in the
-  // wireframe form, so we derive a simple one from the category.
+  let exifData = null;
+
+  if (photos.length > 0) {
+    exifData = await extractExif(photos[0]);
+  }
+
   const title = `${category} Report`;
 
   const { data, error } = await supabase
@@ -61,7 +59,8 @@ export async function submitReport(input: NewReportInput) {
       longitude,
       image_urls: imageUrls,
       status: "Pending",
-      severity: null, // set later by admin or AI analysis
+      severity: null,
+      exif_data: exifData,
     })
     .select()
     .single();

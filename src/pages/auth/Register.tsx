@@ -20,9 +20,14 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+
   const [fullName, setFullName] = useState("");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [emailOtpCode, setEmailOtpCode] = useState("");
+
   const [phone, setPhone] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
@@ -33,6 +38,8 @@ export default function Register() {
     setSuccessMessage("");
     setOtpSent(false);
     setOtpCode("");
+    setEmailOtpSent(false);
+    setEmailOtpCode("");
   }
 
   async function handleEmailRegister(e: React.FormEvent<HTMLFormElement>) {
@@ -44,20 +51,39 @@ export default function Register() {
     try {
       const result = await registerWithEmail(fullName, email, password);
 
-      setSuccessMessage(
-        result.session
-          ? "Account created successfully!"
-          : "Account created! Please check your email to confirm your account."
-      );
-      setFullName("");
-      setEmail("");
-      setPassword("");
+      if (result.session) {
+        navigate("/dashboard");
+        return;
+      }
+
+      setEmailOtpSent(true);
+      setSuccessMessage(`Code sent to ${email}. Enter it below.`);
     } catch (error) {
       console.error("Registration failed:", error);
       setErrorMessage(
         error instanceof Error
           ? error.message
           : "Registration failed. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyEmailOtp(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMessage("");
+
+    try {
+      await sendOtp(email, emailOtpCode);
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Email OTP verification failed:", error);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Invalid or expired code. Please try again."
       );
     } finally {
       setLoading(false);
@@ -112,15 +138,14 @@ export default function Register() {
         <Logo size="lg" />
 
         <p className="mt-4 text-center text-sm text-gray-500">
-          Register as a CERMS resident
+          Create an account to start reporting waste issues in the barangay.
         </p>
 
         <div className="mt-6">
           <AuthMethodTabs active={method} onChange={switchMethod} />
         </div>
 
-        {/* EMAIL REGISTRATION */}
-        {method === "email" && (
+        {method === "email" && !emailOtpSent && (
           <form onSubmit={handleEmailRegister} className="mt-6 space-y-5">
             <Input
               label="Full Name"
@@ -154,12 +179,38 @@ export default function Register() {
             />
 
             <Button type="submit" disabled={loading}>
-              {loading ? "Creating account..." : "Create Account"}
+              {loading ? "Sending code..." : "Send Verification Code"}
             </Button>
           </form>
         )}
 
-        {/* PHONE REGISTRATION */}
+        {method === "email" && emailOtpSent && (
+          <form onSubmit={handleVerifyEmailOtp} className="mt-6 space-y-5">
+            <Input
+              label="Verification Code"
+              type="text"
+              inputMode="numeric"
+              placeholder="Enter 6-digit code"
+              value={emailOtpCode}
+              onChange={(e) => setEmailOtpCode(e.target.value)}
+              maxLength={6}
+              required
+            />
+
+            <Button type="submit" disabled={loading}>
+              {loading ? "Verifying..." : "Verify & Create Account"}
+            </Button>
+
+            <button
+              type="button"
+              onClick={() => setEmailOtpSent(false)}
+              className="w-full text-center text-sm text-green-700 hover:underline"
+            >
+              Use a different email
+            </button>
+          </form>
+        )}
+
         {method === "phone" && !otpSent && (
           <form onSubmit={handleSendOtp} className="mt-6 space-y-5">
             <Input
@@ -236,4 +287,8 @@ export default function Register() {
       </Card>
     </div>
   );
+}
+
+function sendOtp(_email: string, _sendOtp: string) {
+  throw new Error("Function not implemented.");
 }
