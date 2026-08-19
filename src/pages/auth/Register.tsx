@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useState, type SetStateAction } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Logo from "../../components/common/Logo";
 import Card from "../../components/common/Card";
 import Input from "../../components/common/Input";
+import PasswordInput from "../../components/common/Password";
 import Button from "../../components/common/Button";
 import AuthMethodTabs, {
   type AuthMethod,
 } from "../../pages/auth/AuthMethodTabs";
 import {
   registerWithEmail,
+  verifyEmailOtp,
   sendPhoneOtp,
   verifyPhoneOtp,
 } from "../../lib/authHelpers";
@@ -22,6 +24,7 @@ export default function Register() {
   const [successMessage, setSuccessMessage] = useState("");
 
   const [fullName, setFullName] = useState("");
+  const [address, setAddress] = useState("");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,7 +52,7 @@ export default function Register() {
     setSuccessMessage("");
 
     try {
-      const result = await registerWithEmail(fullName, email, password);
+      const result = await registerWithEmail(fullName, email, password, address);
 
       if (result.session) {
         navigate("/dashboard");
@@ -76,7 +79,7 @@ export default function Register() {
     setErrorMessage("");
 
     try {
-      await sendOtp(email, emailOtpCode);
+      await verifyEmailOtp(email, emailOtpCode);
       navigate("/dashboard");
     } catch (error) {
       console.error("Email OTP verification failed:", error);
@@ -97,7 +100,7 @@ export default function Register() {
     setSuccessMessage("");
 
     try {
-      await sendPhoneOtp(phone, fullName);
+      await sendPhoneOtp(phone, fullName, address);
       setOtpSent(true);
       setSuccessMessage(`Code sent to ${phone}. Enter it below.`);
     } catch (error) {
@@ -138,7 +141,7 @@ export default function Register() {
         <Logo size="lg" />
 
         <p className="mt-4 text-center text-sm text-gray-500">
-          Create an account to start reporting waste issues in the barangay.
+          Create an account and start managing your waste collection reports.
         </p>
 
         <div className="mt-6">
@@ -158,6 +161,18 @@ export default function Register() {
             />
 
             <Input
+              label="Address"
+              type="text"
+              placeholder="e.g. Purok 3, Barangay Tankulan"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              required
+            />
+            <p className="-mt-3 text-xs text-gray-400">
+              Must be within Barangay Tankulan, Manolo Fortich, Bukidnon.
+            </p>
+
+            <Input
               label="Email"
               type="email"
               placeholder="Enter your email"
@@ -167,12 +182,11 @@ export default function Register() {
               required
             />
 
-            <Input
+            <PasswordInput
               label="Password"
-              type="password"
               placeholder="Create a password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e: { target: { value: SetStateAction<string>; }; }) => setPassword(e.target.value)}
               autoComplete="new-password"
               minLength={6}
               required
@@ -222,6 +236,18 @@ export default function Register() {
               autoComplete="name"
               required
             />
+
+            <Input
+              label="Address"
+              type="text"
+              placeholder="e.g. Purok 3, Barangay Tankulan"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              required
+            />
+            <p className="-mt-3 text-xs text-gray-400">
+              Must be within Barangay Tankulan, Manolo Fortich, Bukidnon.
+            </p>
 
             <Input
               label="Mobile Number"
@@ -287,8 +313,4 @@ export default function Register() {
       </Card>
     </div>
   );
-}
-
-function sendOtp(_email: string, _sendOtp: string) {
-  throw new Error("Function not implemented.");
 }

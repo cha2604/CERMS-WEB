@@ -4,9 +4,7 @@ import { FiArrowLeft, FiCamera, FiX, FiMapPin } from "react-icons/fi";
 import { supabase } from "../../lib/supabase";
 import { submitReport } from "../../lib/ReportQueries";
 import Button from "../../components/common/Button";
-import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
-
+import LocationPicker from "../../components/Report/LocationPicker";
 
 const CATEGORIES = [
   "Illegal Dumping",
@@ -88,8 +86,19 @@ export default function SubmitReport() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
     setErrorMessage("");
+
+    if (photos.length === 0) {
+      setErrorMessage("Please upload at least one photo before submitting.");
+      return;
+    }
+
+    if (!coords) {
+      setErrorMessage("Please set the report location on the map.");
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const {
@@ -106,8 +115,8 @@ export default function SubmitReport() {
         category,
         description,
         contactNumber,
-        latitude: coords?.lat ?? null,
-        longitude: coords?.lng ?? null,
+        latitude: coords.lat,
+        longitude: coords.lng,
         photos,
       });
 
@@ -126,7 +135,6 @@ export default function SubmitReport() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 pb-10">
-      {/* Header */}
       <div className="flex items-center gap-3 bg-white px-5 py-5 shadow-sm">
         <button
           onClick={() => navigate(-1)}
@@ -139,7 +147,6 @@ export default function SubmitReport() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5 px-5 py-6">
-        {/* Type of Waste Concern */}
         <div>
           <label className="mb-2 block text-sm font-semibold text-slate-700">
             Type of Waste Concern
@@ -157,7 +164,6 @@ export default function SubmitReport() {
           </select>
         </div>
 
-      
         <div>
           <div className="mb-2 flex items-center justify-between">
             <label className="text-sm font-semibold text-slate-700">
@@ -179,7 +185,6 @@ export default function SubmitReport() {
           />
         </div>
 
-        
         <div>
           <label className="mb-2 block text-sm font-semibold text-slate-700">
             Contact Number
@@ -194,10 +199,10 @@ export default function SubmitReport() {
           />
         </div>
 
-      
         <div>
           <label className="mb-2 block text-sm font-semibold text-slate-700">
             Upload Photo{" "}
+            <span className="font-normal text-red-500">*required</span>{" "}
             <span className="font-normal text-gray-400">
               (Max {MAX_PHOTOS} photos)
             </span>
@@ -228,9 +233,7 @@ export default function SubmitReport() {
             {photos.length < MAX_PHOTOS && (
               <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-300 text-gray-400 transition hover:border-green-600 hover:text-green-600">
                 <FiCamera size={22} />
-                <span className="text-xs font-medium">
-                  Tap to upload
-                </span>
+                <span className="text-xs font-medium">Tap to upload</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -243,11 +246,11 @@ export default function SubmitReport() {
           </div>
         </div>
 
-        
         <div>
           <div className="mb-2 flex items-center justify-between">
             <label className="text-sm font-semibold text-slate-700">
-              Location (GPS)
+              Location{" "}
+              <span className="font-normal text-red-500">*required</span>
             </label>
             <button
               type="button"
@@ -256,39 +259,23 @@ export default function SubmitReport() {
               className="flex items-center gap-1 text-sm font-semibold text-green-700 hover:underline disabled:opacity-60"
             >
               <FiMapPin size={14} />
-              {locating ? "Locating..." : "Get Current Location"}
+              {locating ? "Locating..." : "Use My Location"}
             </button>
           </div>
 
-          {coords ? (
-            <div className="h-40 overflow-hidden rounded-xl border border-slate-200">
-              <MapContainer
-                center={[coords.lat, coords.lng]}
-                zoom={16}
-                className="h-full w-full"
-                dragging={false}
-                scrollWheelZoom={false}
-              >
-                <TileLayer
-                  attribution='&copy; OpenStreetMap contributors'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                <CircleMarker
-                  center={[coords.lat, coords.lng]}
-                  radius={10}
-                  pathOptions={{
-                    color: "#16a34a",
-                    fillColor: "#16a34a",
-                    fillOpacity: 0.85,
-                  }}
-                />
-              </MapContainer>
-            </div>
-          ) : (
-            <div className="flex h-32 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm text-gray-500">
-              No location captured yet
-            </div>
+          <p className="mb-2 text-xs text-gray-500">
+            Tap on the map to pinpoint the exact location. Map is limited to
+            Barangay Tankulan, Manolo Fortich.
+          </p>
+
+          <LocationPicker coords={coords} onPick={setCoords} />
+
+          {coords && (
+            <p className="mt-2 text-xs text-gray-500">
+              Selected: {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
+            </p>
           )}
+
           {locationError && (
             <p className="mt-2 text-xs text-red-600">{locationError}</p>
           )}

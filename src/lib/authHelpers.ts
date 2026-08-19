@@ -1,14 +1,16 @@
 import { supabase } from "./supabase";
+
 export async function registerWithEmail(
   fullName: string,
   email: string,
-  password: string
+  password: string,
+  address: string
 ) {
   const { data, error } = await supabase.auth.signUp({
     email: email.trim(),
     password,
     options: {
-      data: { full_name: fullName.trim() },
+      data: { full_name: fullName.trim(), address: address.trim() },
     },
   });
 
@@ -26,6 +28,28 @@ export async function loginWithEmail(email: string, password: string) {
   return data;
 }
 
+export async function loginWithGoogle() {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`,
+    },
+  });
+
+  if (error) throw error;
+}
+
+export async function verifyEmailOtp(email: string, token: string) {
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: email.trim(),
+    token,
+    type: "signup",
+  });
+
+  if (error) throw error;
+  return data;
+}
+
 export function formatPhoneNumber(raw: string): string {
   const digits = raw.replace(/[^\d+]/g, "");
 
@@ -36,21 +60,25 @@ export function formatPhoneNumber(raw: string): string {
   return digits;
 }
 
-
-export async function sendPhoneOtp(phone: string, fullName?: string) {
+export async function sendPhoneOtp(
+  phone: string,
+  fullName?: string,
+  address?: string
+) {
   const formatted = formatPhoneNumber(phone);
+
+  const metadata: Record<string, string> = {};
+  if (fullName) metadata.full_name = fullName.trim();
+  if (address) metadata.address = address.trim();
 
   const { data, error } = await supabase.auth.signInWithOtp({
     phone: formatted,
-    options: fullName
-      ? { data: { full_name: fullName.trim() } }
-      : undefined,
+    options: Object.keys(metadata).length > 0 ? { data: metadata } : undefined,
   });
 
   if (error) throw error;
   return data;
 }
-
 
 export async function verifyPhoneOtp(phone: string, token: string) {
   const formatted = formatPhoneNumber(phone);

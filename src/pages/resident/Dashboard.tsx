@@ -12,8 +12,9 @@ import { supabase } from "../../lib/supabase";
 import {
   getResidentStats,
   getResidentRecentReports,
+  type ReportRow,
+  type StatusCounts,
 } from "../../lib/DashboardQueries";
-import type { ReportRow, StatusCounts } from "../../lib/DashboardQueries";
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: "bg-blue-50 text-blue-700",
@@ -92,7 +93,6 @@ export default function ResidentDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 pb-24">
-      {/* Header */}
       <div className="bg-white px-5 pb-5 pt-6 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
@@ -119,7 +119,6 @@ export default function ResidentDashboard() {
           </div>
         )}
 
-        {/* Overview */}
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
           Overview
         </h2>
@@ -148,9 +147,14 @@ export default function ResidentDashboard() {
             loading={loading}
             className="bg-green-50 text-green-700"
           />
+          <StatCard
+            label="Rejected"
+            value={stats?.rejected}
+            loading={loading}
+            className="col-span-2 bg-red-50 text-red-700"
+          />
         </div>
 
-        {/* Quick Actions */}
         <h2 className="mb-3 mt-6 text-sm font-semibold uppercase tracking-wide text-gray-500">
           Quick Actions
         </h2>
@@ -171,7 +175,6 @@ export default function ResidentDashboard() {
           </Link>
         </div>
 
-        {/* Recent Updates */}
         <div className="mb-3 mt-6 flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
             Recent Updates
@@ -224,7 +227,6 @@ export default function ResidentDashboard() {
         </div>
       </div>
 
-      {/* Bottom nav */}
       <nav className="fixed inset-x-0 bottom-0 flex items-center justify-around border-t border-gray-200 bg-white py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.05)]">
         <NavItem icon={<FiHome size={20} />} label="Home" to="/dashboard" active />
         <NavItem icon={<FiFileText size={20} />} label="Reports" to="/reports" />
