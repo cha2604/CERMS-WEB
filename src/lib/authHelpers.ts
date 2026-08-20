@@ -1,9 +1,6 @@
 import { supabase } from "./supabase";
 export async function registerWithEmail(
-  fullName: string,
-  email: string,
-  password: string
-) {
+fullName: string, email: string, password: string, address: string) {
   const { data, error } = await supabase.auth.signUp({
     email: email.trim(),
     password,

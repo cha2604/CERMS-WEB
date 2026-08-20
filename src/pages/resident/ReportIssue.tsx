@@ -1,10 +1,12 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { FiArrowLeft, FiCamera, FiX, FiMapPin } from "react-icons/fi";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { FiCamera, FiX, FiMapPin, FiSave } from "react-icons/fi";
 import { supabase } from "../../lib/supabase";
 import { submitReport } from "../../lib/ReportQueries";
+import { saveDraft, getDraftById } from "../../lib/DraftQueries";
 import Button from "../../components/common/Button";
 import LocationPicker from "../../components/Report/LocationPicker";
+import ResidentLayout from "../../pages/resident/Layout";
 
 const CATEGORIES = [
   "Illegal Dumping",
@@ -20,6 +22,8 @@ const MAX_DESCRIPTION = 250;
 
 export default function SubmitReport() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const draftId = searchParams.get("draft");
 
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [description, setDescription] = useState("");
@@ -34,7 +38,29 @@ export default function SubmitReport() {
   const [locationError, setLocationError] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [draftMessage, setDraftMessage] = useState("");
+
+  useEffect(() => {
+    if (!draftId) return;
+
+    async function loadDraft() {
+      try {
+        const draft = await getDraftById(draftId as string);
+        setCategory(draft.category || CATEGORIES[0]);
+        setDescription(draft.description || "");
+        setContactNumber(draft.contact_number || "");
+        if (draft.latitude && draft.longitude) {
+          setCoords({ lat: draft.latitude, lng: draft.longitude });
+        }
+      } catch (err) {
+        console.error("Failed to load draft:", err);
+      }
+    }
+
+    loadDraft();
+  }, [draftId]);
 
   function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -82,6 +108,42 @@ export default function SubmitReport() {
         setLocating(false);
       }
     );
+  }
+
+  async function handleSaveDraft() {
+    setSavingDraft(true);
+    setDraftMessage("");
+    setErrorMessage("");
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        navigate("/login");
+        return;
+      }
+
+      await saveDraft(
+        user.id,
+        {
+          category,
+          description,
+          contactNumber,
+          latitude: coords?.lat ?? null,
+          longitude: coords?.lng ?? null,
+        },
+        draftId ?? undefined
+      );
+
+      setDraftMessage("Draft saved. You can resume it from Draft Reports.");
+    } catch (error) {
+      console.error("Failed to save draft:", error);
+      setErrorMessage("Couldn't save draft. Please try again.");
+    } finally {
+      setSavingDraft(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -134,18 +196,7 @@ export default function SubmitReport() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 pb-10">
-      <div className="flex items-center gap-3 bg-white px-5 py-5 shadow-sm">
-        <button
-          onClick={() => navigate(-1)}
-          aria-label="Go back"
-          className="rounded-full p-2 text-green-700 transition hover:bg-green-50"
-        >
-          <FiArrowLeft size={20} />
-        </button>
-        <h1 className="text-lg font-bold text-slate-800">Submit Report</h1>
-      </div>
-
+    <ResidentLayout title="Submit Report">
       <form onSubmit={handleSubmit} className="space-y-5 px-5 py-6">
         <div>
           <label className="mb-2 block text-sm font-semibold text-slate-700">
@@ -244,6 +295,11 @@ export default function SubmitReport() {
               </label>
             )}
           </div>
+
+          <p className="mt-2 text-xs text-gray-400">
+            Note: photos aren't saved in drafts. You'll need to re-add them
+            when you resume this report.
+          </p>
         </div>
 
         <div>
@@ -281,16 +337,34 @@ export default function SubmitReport() {
           )}
         </div>
 
+        {draftMessage && (
+          <div className="rounded-xl bg-green-50 p-4 text-center text-sm text-green-800">
+            {draftMessage}
+          </div>
+        )}
+
         {errorMessage && (
           <div className="rounded-xl bg-red-50 p-4 text-center text-sm text-red-700">
             {errorMessage}
           </div>
         )}
 
-        <Button type="submit" disabled={loading}>
-          {loading ? "Submitting..." : "Submit Report"}
-        </Button>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            disabled={savingDraft}
+            className="flex items-center justify-center gap-2 rounded-xl border border-green-700 px-4 py-3 text-sm font-semibold text-green-700 transition hover:bg-green-50 disabled:opacity-60"
+          >
+            <FiSave size={16} />
+            {savingDraft ? "Saving..." : "Save Draft"}
+          </button>
+
+          <Button type="submit" disabled={loading}>
+            {loading ? "Submitting..." : "Submit Report"}
+          </Button>
+        </div>
       </form>
-    </div>
+    </ResidentLayout>
   );
 }

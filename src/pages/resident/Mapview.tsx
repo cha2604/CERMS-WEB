@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
-import { FiArrowLeft, FiHome, FiFileText, FiMap, FiUser } from "react-icons/fi";
 import { getMapReports } from "../../lib/Map";
 import type { MapReport } from "../../lib/Map";
+import ResidentLayout from "../../pages/resident/Layout";
+import "leaflet/dist/leaflet.css";
 
 const DEFAULT_CENTER: [number, number] = [8.360839, 124.867628];
-const DEFAULT_ZOOM = 15;
+const DEFAULT_ZOOM = 16;
 
 const SEVERITY_COLORS: Record<string, string> = {
   Critical: "#dc2626",
@@ -24,8 +24,6 @@ function getMarkerColor(severity: string | null) {
 }
 
 export default function MapView() {
-  const navigate = useNavigate();
-
   const [reports, setReports] = useState<MapReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -65,25 +63,14 @@ export default function MapView() {
       : DEFAULT_CENTER;
 
   return (
-    <div className="flex min-h-screen flex-col bg-white pb-16">
-      <div className="flex items-center gap-3 bg-white px-5 py-5 shadow-sm">
-        <button
-          onClick={() => navigate(-1)}
-          aria-label="Go back"
-          className="rounded-full p-2 text-green-700 transition hover:bg-green-50"
-        >
-          <FiArrowLeft size={20} />
-        </button>
-        <h1 className="text-lg font-bold text-slate-800">Map View</h1>
-      </div>
-
+    <ResidentLayout title="Map View">
       {errorMessage && (
         <div className="mx-5 mt-3 rounded-xl bg-red-50 p-4 text-center text-sm text-red-700">
           {errorMessage}
         </div>
       )}
 
-      <div className="relative flex-1">
+      <div className="relative" style={{ height: "70vh" }}>
         {loading ? (
           <div className="flex h-full items-center justify-center text-sm text-gray-400">
             Loading map...
@@ -92,8 +79,7 @@ export default function MapView() {
           <MapContainer
             center={center}
             zoom={DEFAULT_ZOOM}
-            className="h-full w-full"
-            style={{ minHeight: "60vh" }}
+            style={{ height: "100%", width: "100%" }}
           >
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -132,9 +118,7 @@ export default function MapView() {
                     </p>
                     <span
                       className="mt-2 inline-block rounded-full px-2 py-1 text-xs font-semibold text-white"
-                      style={{
-                        backgroundColor: getMarkerColor(report.severity),
-                      }}
+                      style={{ backgroundColor: getMarkerColor(report.severity) }}
                     >
                       {report.severity ?? "Unclassified"}
                     </span>
@@ -157,37 +141,6 @@ export default function MapView() {
           </div>
         ))}
       </div>
-
-      <nav className="fixed inset-x-0 bottom-0 flex items-center justify-around border-t border-gray-200 bg-white py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.05)]">
-        <Link
-          to="/dashboard"
-          className="flex flex-col items-center gap-1 text-xs font-medium text-gray-400"
-        >
-          <FiHome size={20} />
-          Home
-        </Link>
-        <Link
-          to="/reports"
-          className="flex flex-col items-center gap-1 text-xs font-medium text-gray-400"
-        >
-          <FiFileText size={20} />
-          Reports
-        </Link>
-        <Link
-          to="/map"
-          className="flex flex-col items-center gap-1 text-xs font-medium text-green-700"
-        >
-          <FiMap size={20} />
-          Map
-        </Link>
-        <Link
-          to="/profile"
-          className="flex flex-col items-center gap-1 text-xs font-medium text-gray-400"
-        >
-          <FiUser size={20} />
-          Profile
-        </Link>
-      </nav>
-    </div>
+    </ResidentLayout>
   );
 }

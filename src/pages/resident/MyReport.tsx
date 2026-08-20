@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { FiArrowLeft, FiHome, FiFileText, FiMap, FiUser } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import {
   getResidentReports,
   type ReportRow,
   type ReportStatus,
 } from "../../lib/DashboardQueries";
+import ResidentLayout from "../../pages/resident/Layout";
 
 const TABS: { label: string; value: ReportStatus | "All" }[] = [
   { label: "All", value: "All" },
@@ -70,20 +70,9 @@ export default function MyReport() {
   }, [activeTab, navigate]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 pb-24">
-      <div className="bg-white px-5 py-5 shadow-sm">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            aria-label="Go back"
-            className="rounded-full p-2 text-green-700 transition hover:bg-green-50"
-          >
-            <FiArrowLeft size={20} />
-          </button>
-          <h1 className="text-lg font-bold text-slate-800">My Reports</h1>
-        </div>
-
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+    <ResidentLayout title="My Reports">
+      <div className="px-5 py-5">
+        <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
           {TABS.map((tab) => (
             <button
               key={tab.value}
@@ -98,9 +87,7 @@ export default function MyReport() {
             </button>
           ))}
         </div>
-      </div>
 
-      <div className="px-5 py-5">
         {errorMessage && (
           <div className="mb-4 rounded-xl bg-red-50 p-4 text-center text-sm text-red-700">
             {errorMessage}
@@ -165,37 +152,6 @@ export default function MyReport() {
             ))}
         </div>
       </div>
-
-      <nav className="fixed inset-x-0 bottom-0 flex items-center justify-around border-t border-gray-200 bg-white py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.05)]">
-        <Link
-          to="/dashboard"
-          className="flex flex-col items-center gap-1 text-xs font-medium text-gray-400"
-        >
-          <FiHome size={20} />
-          Home
-        </Link>
-        <Link
-          to="/reports"
-          className="flex flex-col items-center gap-1 text-xs font-medium text-green-700"
-        >
-          <FiFileText size={20} />
-          Reports
-        </Link>
-        <Link
-          to="/map"
-          className="flex flex-col items-center gap-1 text-xs font-medium text-gray-400"
-        >
-          <FiMap size={20} />
-          Map
-        </Link>
-        <Link
-          to="/profile"
-          className="flex flex-col items-center gap-1 text-xs font-medium text-gray-400"
-        >
-          <FiUser size={20} />
-          Profile
-        </Link>
-      </nav>
-    </div>
+    </ResidentLayout>
   );
 }
