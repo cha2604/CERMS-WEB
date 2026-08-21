@@ -4,6 +4,7 @@ import { FiCamera, FiX, FiMapPin, FiSave } from "react-icons/fi";
 import { supabase } from "../../lib/supabase";
 import { submitReport } from "../../lib/ReportQueries";
 import { saveDraft, getDraftById } from "../../lib/DraftQueries";
+import { getProfile } from "../../lib/ProfileQueries";
 import Button from "../../components/common/Button";
 import LocationPicker from "../../components/Report/LocationPicker";
 import ResidentLayout from "../../pages/resident/Layout";
@@ -43,6 +44,25 @@ export default function SubmitReport() {
   const [draftMessage, setDraftMessage] = useState("");
 
   useEffect(() => {
+    async function loadProfileContact() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) return;
+
+        const profile = await getProfile(user.id);
+        setContactNumber(profile.contact_number || "");
+      } catch (err) {
+        console.error("Failed to load profile contact number:", err);
+      }
+    }
+
+    loadProfileContact();
+  }, []);
+
+  useEffect(() => {
     if (!draftId) return;
 
     async function loadDraft() {
@@ -50,7 +70,6 @@ export default function SubmitReport() {
         const draft = await getDraftById(draftId as string);
         setCategory(draft.category || CATEGORIES[0]);
         setDescription(draft.description || "");
-        setContactNumber(draft.contact_number || "");
         if (draft.latitude && draft.longitude) {
           setCoords({ lat: draft.latitude, lng: draft.longitude });
         }
@@ -172,11 +191,13 @@ export default function SubmitReport() {
         return;
       }
 
+      const profile = await getProfile(user.id);
+
       await submitReport({
         userId: user.id,
         category,
         description,
-        contactNumber,
+        contactNumber: profile.contact_number || contactNumber,
         latitude: coords.lat,
         longitude: coords.lng,
         photos,
@@ -236,19 +257,15 @@ export default function SubmitReport() {
           />
         </div>
 
-        <div>
-          <label className="mb-2 block text-sm font-semibold text-slate-700">
-            Contact Number
-          </label>
-          <input
-            type="tel"
-            value={contactNumber}
-            onChange={(e) => setContactNumber(e.target.value)}
-            placeholder="09XX-XXX-XXXX"
-            required
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-green-700 focus:ring-4 focus:ring-green-100"
-          />
-        </div>
+        {!contactNumber && (
+          <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
+            No contact number on file. Add one in your{" "}
+            <a href="/profile" className="font-semibold underline">
+              Profile
+            </a>{" "}
+            so admins can reach you about this report.
+          </div>
+        )}
 
         <div>
           <label className="mb-2 block text-sm font-semibold text-slate-700">

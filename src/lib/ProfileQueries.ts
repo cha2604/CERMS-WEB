@@ -6,6 +6,7 @@ export interface Profile {
   email: string | null;
   phone: string | null;
   contact_number: string | null;
+  address: string | null;
   role: string;
   created_at: string;
 }
@@ -23,13 +24,14 @@ export async function getProfile(userId: string): Promise<Profile> {
 
 export async function updateProfile(
   userId: string,
-  updates: { full_name: string; contact_number: string }
+  updates: { full_name: string; contact_number: string; address: string }
 ): Promise<void> {
   const { error } = await supabase
     .from("profiles")
     .update({
       full_name: updates.full_name,
       contact_number: updates.contact_number,
+      address: updates.address,
       updated_at: new Date().toISOString(),
     })
     .eq("id", userId);
