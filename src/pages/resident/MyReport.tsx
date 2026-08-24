@@ -1,156 +1,151 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
-import {
-  getResidentReports,
-  type ReportRow,
-  type ReportStatus,
-} from "../../lib/DashboardQueries";
-import ResidentLayout from "../../pages/resident/Layout";
+import ResidentLayout from "./Layout";
 
-const TABS: { label: string; value: ReportStatus | "All" }[] = [
-  { label: "All", value: "All" },
-  { label: "Pending", value: "Pending" },
-  { label: "On-going", value: "Ongoing" },
-  { label: "Resolved", value: "Resolved" },
-  { label: "Rejected", value: "Rejected" },
-];
-
-const STATUS_STYLES: Record<string, string> = {
-  Pending: "bg-blue-50 text-blue-700",
-  Ongoing: "bg-amber-50 text-amber-700",
-  Resolved: "bg-green-50 text-green-700",
-  Rejected: "bg-red-50 text-red-700",
-};
+interface ReportItem {
+  id: string;
+  title: string;
+  waste_type?: string;
+  status: "Pending" | "Ongoing" | "On-going" | "Resolved" | "Rejected";
+  created_at: string;
+  image_urls: string[];
+}
 
 export default function MyReport() {
   const navigate = useNavigate();
-
-  const [activeTab, setActiveTab] = useState<ReportStatus | "All">("All");
-  const [reports, setReports] = useState<ReportRow[]>([]);
+  const [reports, setReports] = useState<ReportItem[]>([]);
+  const [filter, setFilter] = useState<string>("All");
   const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function load() {
-      setLoading(true);
-      setErrorMessage("");
-
+    async function fetchMyReports() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        setLoading(true);
+        const { data, error } = await supabase
+          .from("reports")
+          .select("*")
+          .order("created_at", { ascending: false });
 
-        if (!user) {
-          navigate("/login");
-          return;
-        }
-
-        const data = await getResidentReports(user.id, activeTab);
-
-        if (isMounted) {
-          setReports(data);
-        }
+        if (error) throw error;
+        if (data) setReports(data as ReportItem[]);
       } catch (err) {
-        console.error("Failed to load reports:", err);
-        if (isMounted) {
-          setErrorMessage("Couldn't load your reports. Pull to refresh.");
-        }
+        console.error("Failed to load reports from Supabase:", err);
       } finally {
-        if (isMounted) setLoading(false);
+        setLoading(false);
       }
     }
 
-    load();
-    return () => {
-      isMounted = false;
-    };
-  }, [activeTab, navigate]);
+    fetchMyReports();
+  }, []);
+
+  const filteredReports = reports.filter((report) => {
+    if (filter === "All") return true;
+    if (filter === "On-going" || filter === "Ongoing") {
+      return report.status === "Ongoing" || report.status === "On-going";
+    }
+    return report.status === filter;
+  });
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case "Pending":
+        return "bg-amber-100 text-amber-800 border-amber-300";
+      case "Ongoing":
+      case "On-going":
+        return "bg-blue-100 text-blue-800 border-blue-300";
+      case "Resolved":
+        return "bg-emerald-100 text-emerald-800 border-emerald-300";
+      case "Rejected":
+        return "bg-rose-100 text-rose-800 border-rose-300";
+      default:
+        return "bg-slate-100 text-slate-800 border-slate-300";
+    }
+  };
 
   return (
     <ResidentLayout title="My Reports">
-      <div className="px-5 py-5">
-        <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
-          {TABS.map((tab) => (
+      <div className="p-4 space-y-4 max-w-4xl mx-auto">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2">
+          {["All", "Pending", "On-going", "Resolved", "Rejected"].map((tab) => (
             <button
-              key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
-              className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                activeTab === tab.value
-                  ? "bg-green-700 text-white"
-                  : "bg-green-50 text-green-700 hover:bg-green-100"
+              key={tab}
+              onClick={() => setFilter(tab)}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 ${
+                filter === tab
+                  ? "bg-emerald-800 text-white shadow-sm"
+                  : "bg-white text-emerald-800 border border-emerald-200 hover:bg-emerald-50"
               }`}
             >
-              {tab.label}
+              {tab}
             </button>
           ))}
         </div>
 
-        {errorMessage && (
-          <div className="mb-4 rounded-xl bg-red-50 p-4 text-center text-sm text-red-700">
-            {errorMessage}
+        {loading ? (
+          <div className="py-12 text-center text-xs font-semibold text-slate-400">
+            Loading your reports...
           </div>
-        )}
-
-        <div className="space-y-3">
-          {loading &&
-            [1, 2, 3].map((i) => (
-              <div key={i} className="h-24 animate-pulse rounded-xl bg-white/60" />
-            ))}
-
-          {!loading && reports.length === 0 && (
-            <div className="rounded-xl bg-white p-6 text-center text-sm text-gray-500">
-              No {activeTab !== "All" ? activeTab.toLowerCase() : ""} reports
-              found.
-            </div>
-          )}
-
-          {!loading &&
-            reports.map((report) => (
+        ) : filteredReports.length === 0 ? (
+          <div className="py-12 text-center bg-white rounded-2xl border border-slate-200 p-6">
+            <p className="text-sm font-bold text-slate-700">No reports found</p>
+            <p className="text-xs text-slate-400 mt-1">There are no reports under "{filter}".</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredReports.map((report) => (
               <div
-                key={report.id}
-                className="flex gap-3 rounded-xl bg-white p-3 shadow-sm"
+            key={report.id}
+            onClick={() => navigate(`/report/${report.id}`)}
+            className="bg-white p-4 rounded-2xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer flex items-center justify-between gap-4 group"
               >
-                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-slate-100">
-                  {report.image_urls && report.image_urls.length > 0 ? (
-                    <img
-                      src={report.image_urls[0]}
-                      alt={report.title}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">
-                      No photo
-                    </div>
-                  )}
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="h-14 w-14 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                    {report.image_urls && report.image_urls.length > 0 ? (
+                      <img
+                        src={report.image_urls[0]}
+                        alt={report.title}
+                        className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-[10px] text-slate-400">
+                        No Photo
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="min-w-0">
+                    <h4 className="font-extrabold text-slate-900 text-sm truncate group-hover:text-emerald-700 transition-colors">
+                      {report.waste_type || report.title || "Waste Concern Report"}
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {new Date(report.created_at).toLocaleString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-slate-800">
-                    {report.title}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {new Date(report.created_at).toLocaleString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}
-                  </p>
+                <div className="flex items-center gap-2 shrink-0">
                   <span
-                    className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-semibold ${
-                      STATUS_STYLES[report.status] ?? "bg-gray-100 text-gray-700"
-                    }`}
+                    className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusBadgeClass(
+                      report.status
+                    )}`}
                   >
                     {report.status}
                   </span>
-                </div>
+                  <span className="text-slate-400 group-hover:text-emerald-600 font-bold text-sm">
+                    →
+                  </span>
+                </div> 
               </div>
             ))}
-        </div>
+          </div>
+        )}
       </div>
     </ResidentLayout>
   );

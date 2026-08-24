@@ -9,6 +9,7 @@ import AdminReports from "./pages/admin/Reports";
 import AdminReportDetails from "./pages/admin/ReportDetails";
 import Profile from "./pages/resident/Profile";
 import DraftReports from "./pages/resident/DraftReport";
+import ReportDetails from "./pages/resident/ReportDetails";
 
 function App() {
   return (
@@ -25,6 +26,8 @@ function App() {
       <Route path="/admin/reports/:id" element={<AdminReportDetails />} />
       <Route path="/profile" element={<Profile />} />
       <Route path="/reports/drafts" element={<DraftReports />} />
+      <Route path="/report/:id" element={<ReportDetails />} />
+      <Route path="/reports/:id" element={<ReportDetails />} />
     </Routes>
   );
 }

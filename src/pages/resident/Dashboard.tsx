@@ -1,247 +1,193 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { FiBell, FiFileText, FiPlusCircle } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
-import {
-  getResidentStats,
-  getResidentRecentReports,
-  type ReportRow,
-  type StatusCounts,
-} from "../../lib/DashboardQueries";
-import ResidentLayout from "../../pages/resident/Layout";
+import ResidentLayout from "./Layout";
 
-const STATUS_STYLES: Record<string, string> = {
-  Pending: "bg-blue-50 text-blue-700",
-  Ongoing: "bg-amber-50 text-amber-700",
-  Resolved: "bg-green-50 text-green-700",
-  Rejected: "bg-red-50 text-red-700",
-};
-
-function timeAgo(dateStr: string) {
-  return new Date(dateStr).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+interface ReportSummary {
+  id: string;
+  title: string;
+  waste_type?: string;
+  status: "Pending" | "Ongoing" | "On-going" | "Resolved" | "Rejected";
+  created_at: string;
 }
 
 export default function ResidentDashboard() {
   const navigate = useNavigate();
-
-  const [fullName, setFullName] = useState("");
-  const [stats, setStats] = useState<StatusCounts | null>(null);
-  const [recent, setRecent] = useState<ReportRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [reports, setReports] = useState<ReportSummary[]>([]);
+  const [userName, setUserName] = useState("Charity");
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function load() {
-      setLoading(true);
-      setErrorMessage("");
-
+    async function loadDashboardData() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
-          navigate("/login");
-          return;
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData?.user?.user_metadata?.full_name) {
+          const firstName = userData.user.user_metadata.full_name.split(" ")[0];
+          setUserName(firstName);
         }
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", user.id)
-          .single();
+        const { data, error } = await supabase
+          .from("reports")
+          .select("id, title, waste_type, status, created_at")
+          .order("created_at", { ascending: false })
+          .limit(5);
 
-        const [statCounts, recentReports] = await Promise.all([
-          getResidentStats(user.id),
-          getResidentRecentReports(user.id, 5),
-        ]);
-
-        if (!isMounted) return;
-
-        setFullName(profile?.full_name || "there");
-        setStats(statCounts);
-        setRecent(recentReports);
+        if (error) throw error;
+        if (data) setReports(data as ReportSummary[]);
       } catch (err) {
-        console.error("Failed to load resident dashboard:", err);
-        if (isMounted) {
-          setErrorMessage("Couldn't load your dashboard. Pull to refresh.");
-        }
-      } finally {
-        if (isMounted) setLoading(false);
+        console.error("Failed to load dashboard data:", err);
       }
     }
 
-    load();
-    return () => {
-      isMounted = false;
-    };
-  }, [navigate]);
+    loadDashboardData();
+  }, []);
+
+  const totalCount = reports.length;
+  const pendingCount = reports.filter((r) => r.status === "Pending").length;
+  const ongoingCount = reports.filter((r) => r.status === "Ongoing" || r.status === "On-going").length;
+  const resolvedCount = reports.filter((r) => r.status === "Resolved").length;
+  const rejectedCount = reports.filter((r) => r.status === "Rejected").length;
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case "Pending":
+        return "bg-amber-100 text-amber-800 border-amber-300";
+      case "Ongoing":
+      case "On-going":
+        return "bg-blue-100 text-blue-800 border-blue-300";
+      case "Resolved":
+        return "bg-emerald-100 text-emerald-800 border-emerald-300";
+      case "Rejected":
+        return "bg-rose-100 text-rose-800 border-rose-300";
+      default:
+        return "bg-slate-100 text-slate-800 border-slate-300";
+    }
+  };
 
   return (
-    <ResidentLayout
-      title="Dashboard"
-      headerRight={
-        <button
-          aria-label="Notifications"
-          className="rounded-full bg-green-50 p-3 text-green-700 transition hover:bg-green-100"
-        >
-          <FiBell size={20} />
-        </button>
-      }
-    >
-      <div className="px-5 pb-10 pt-5">
-        <h2 className="text-2xl font-bold text-green-800">
-          Hello, {loading ? "..." : fullName}! 👋
-        </h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Let's keep our barangay clean.
-        </p>
-
-        {errorMessage && (
-          <div className="mb-4 mt-4 rounded-xl bg-red-50 p-4 text-center text-sm text-red-700">
-            {errorMessage}
-          </div>
-        )}
-
-        <h3 className="mb-3 mt-6 text-sm font-semibold uppercase tracking-wide text-gray-500">
-          Overview
-        </h3>
-        <div className="grid grid-cols-2 gap-3">
-          <StatCard
-            label="Total Reports"
-            value={stats?.total}
-            loading={loading}
-            className="bg-white text-slate-800"
-          />
-          <StatCard
-            label="Pending"
-            value={stats?.pending}
-            loading={loading}
-            className="bg-amber-50 text-amber-700"
-          />
-          <StatCard
-            label="On-going"
-            value={stats?.ongoing}
-            loading={loading}
-            className="bg-blue-50 text-blue-700"
-          />
-          <StatCard
-            label="Resolved"
-            value={stats?.resolved}
-            loading={loading}
-            className="bg-green-50 text-green-700"
-          />
-          <StatCard
-            label="Rejected"
-            value={stats?.rejected}
-            loading={loading}
-            className="col-span-2 bg-red-50 text-red-700"
-          />
-        </div>
-
-        <h3 className="mb-3 mt-6 text-sm font-semibold uppercase tracking-wide text-gray-500">
-          Quick Actions
-        </h3>
-        <div className="grid grid-cols-2 gap-3">
-          <Link
-            to="/report/new"
-            className="flex items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-3 font-semibold text-white transition hover:bg-green-800"
-          >
-            <FiPlusCircle size={18} />
-            Submit Report
-          </Link>
-          <Link
-            to="/reports"
-            className="flex items-center justify-center gap-2 rounded-xl border border-green-700 px-4 py-3 font-semibold text-green-700 transition hover:bg-green-50"
-          >
-            <FiFileText size={18} />
-            My Reports
-          </Link>
-        </div>
-
-        <div className="mb-3 mt-6 flex items-center justify-between">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Recent Updates
-          </h3>
-          <Link to="/reports" className="text-sm font-semibold text-green-700">
-            View All
-          </Link>
-        </div>
-
-        <div className="space-y-3">
-          {loading &&
-            [1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-16 animate-pulse rounded-xl bg-white/60"
-              />
-            ))}
-
-          {!loading && recent.length === 0 && (
-            <div className="rounded-xl bg-white p-6 text-center text-sm text-gray-500">
-              No reports yet. Tap "Submit Report" to report your first
-              concern.
+    <ResidentLayout title="Dashboard">
+      <div className="p-4 space-y-5 max-w-4xl mx-auto">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-full bg-emerald-700 text-white flex items-center justify-center font-extrabold text-base shadow-sm">
+              {userName.charAt(0)}
             </div>
-          )}
+            <div>
+              <h3 className="font-black text-slate-900 text-base flex items-center gap-1">
+                Hello, {userName}! 👋
+              </h3>
+              <p className="text-xs text-slate-500 font-medium">
+                Let's keep our barangay clean.
+              </p>
+            </div>
+          </div>
 
-          {!loading &&
-            recent.map((report) => (
+          <button
+            type="button"
+            className="relative p-2.5 text-slate-500 hover:text-slate-700 bg-slate-50 rounded-xl border border-slate-200"
+          >
+            🔔
+            <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-rose-500 rounded-full" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm col-span-2">
+            <span className="text-3xl font-black text-slate-900">{totalCount}</span>
+            <p className="text-xs font-semibold text-slate-500 mt-0.5">Total Reports</p>
+          </div>
+
+          <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100 shadow-sm">
+            <span className="text-2xl font-black text-amber-600">{pendingCount}</span>
+            <p className="text-xs font-semibold text-amber-800 mt-0.5">Pending</p>
+          </div>
+
+          <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 shadow-sm">
+            <span className="text-2xl font-black text-blue-600">{ongoingCount}</span>
+            <p className="text-xs font-semibold text-blue-800 mt-0.5">On-going</p>
+          </div>
+
+          <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 shadow-sm">
+            <span className="text-2xl font-black text-emerald-600">{resolvedCount}</span>
+            <p className="text-xs font-semibold text-emerald-800 mt-0.5">Resolved</p>
+          </div>
+
+          <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100 shadow-sm">
+            <span className="text-2xl font-black text-rose-600">{rejectedCount}</span>
+            <p className="text-xs font-semibold text-rose-800 mt-0.5">Rejected</p>
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">
+            Quick Actions
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => navigate("/report/new")}
+              className="py-3 px-4 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+            >
+              ⊕ Submit Report
+            </button>
+            <button
+              onClick={() => navigate("/reports")}
+              className="py-3 px-4 bg-white hover:bg-slate-50 text-emerald-800 border border-emerald-300 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+            >
+              📄 My Reports
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
+              Recent Updates
+            </h3>
+            <button
+              onClick={() => navigate("/reports")}
+              className="text-xs font-bold text-emerald-700 hover:underline"
+            >
+              View All
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {reports.map((report) => (
               <div
-                key={report.id}
-                className="flex items-center justify-between rounded-xl bg-white p-4 shadow-sm"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-slate-800">
-                    {report.title}
-                  </p>
-                  <p className="mt-0.5 text-xs text-gray-500">
-                    {timeAgo(report.created_at)}
+             key={report.id}
+             onClick={() => navigate(`/report/${report.id}`)}
+             className="bg-white p-4 rounded-2xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer flex items-center justify-between gap-3 group">
+                <div>
+                  <h4 className="font-extrabold text-slate-900 text-xs group-hover:text-emerald-700 transition-colors">
+                    {report.waste_type || report.title || "Waste Concern Report"}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {new Date(report.created_at).toLocaleString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
                   </p>
                 </div>
-                <span
-                  className={`ml-3 shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
-                    STATUS_STYLES[report.status] ?? "bg-gray-100 text-gray-700"
-                  }`}
-                >
-                  {report.status}
-                </span>
+
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusBadgeClass(
+                      report.status
+                    )}`}
+                  >
+                    {report.status}
+                  </span>
+                  <span className="text-slate-400 group-hover:text-emerald-600 font-bold">
+                    →
+                  </span>
+                </div>
               </div>
             ))}
+          </div>
         </div>
       </div>
     </ResidentLayout>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  loading,
-  className,
-}: {
-  label: string;
-  value: number | undefined;
-  loading: boolean;
-  className: string;
-}) {
-  return (
-    <div className={`rounded-2xl p-4 shadow-sm ${className}`}>
-      <p className="text-2xl font-bold">
-        {loading ? (
-          <span className="inline-block h-7 w-8 animate-pulse rounded bg-current/20" />
-        ) : (
-          value ?? 0
-        )}
-      </p>
-      <p className="mt-1 text-xs font-medium opacity-80">{label}</p>
-    </div>
   );
 }
