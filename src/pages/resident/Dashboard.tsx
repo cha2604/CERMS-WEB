@@ -2,50 +2,72 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import ResidentLayout from "./Layout";
+import {
+  getResidentStats,
+  getResidentRecentReports,
+  type ReportRow,
+  type StatusCounts,
+} from "../../lib/DashboardQueries";
 
-interface ReportSummary {
-  id: string;
-  title: string;
-  waste_type?: string;
-  status: "Pending" | "Ongoing" | "On-going" | "Resolved" | "Rejected";
-  created_at: string;
-}
-
-export default function ResidentDashboard() {
+export default function Dashboard() {
   const navigate = useNavigate();
-  const [reports, setReports] = useState<ReportSummary[]>([]);
-  const [userName, setUserName] = useState("Charity");
+  const [userName, setUserName] = useState<string>("User");
+  const [stats, setStats] = useState<StatusCounts>({
+    total: 0,
+    pending: 0,
+    ongoing: 0,
+    resolved: 0,
+    rejected: 0,
+  });
+  const [recentReports, setRecentReports] = useState<ReportRow[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     async function loadDashboardData() {
       try {
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData?.user?.user_metadata?.full_name) {
-          const firstName = userData.user.user_metadata.full_name.split(" ")[0];
-          setUserName(firstName);
+        setLoading(true);
+
+        // 1. Get authenticated user
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          setLoading(false);
+          return;
         }
 
-        const { data, error } = await supabase
-          .from("reports")
-          .select("id, title, waste_type, status, created_at")
-          .order("created_at", { ascending: false })
-          .limit(5);
+        // 2. Fetch Profile Name
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .maybeSingle();
 
-        if (error) throw error;
-        if (data) setReports(data as ReportSummary[]);
+        const name =
+          profile?.full_name ||
+          user.user_metadata?.full_name ||
+          user.email?.split("@")[0] ||
+          "User";
+        setUserName(name);
+
+        // 3. Fetch stats and recent 5 reports in parallel
+        const [userStats, recentData] = await Promise.all([
+          getResidentStats(user.id),
+          getResidentRecentReports(user.id, 5),
+        ]);
+
+        setStats(userStats);
+        setRecentReports(recentData);
       } catch (err) {
-        console.error("Failed to load dashboard data:", err);
+        console.error("Error loading dashboard data:", err);
+      } finally {
+        setLoading(false);
       }
     }
 
     loadDashboardData();
   }, []);
-
-  const totalCount = reports.length;
-  const pendingCount = reports.filter((r) => r.status === "Pending").length;
-  const ongoingCount = reports.filter((r) => r.status === "Ongoing" || r.status === "On-going").length;
-  const resolvedCount = reports.filter((r) => r.status === "Resolved").length;
-  const rejectedCount = reports.filter((r) => r.status === "Rejected").length;
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -65,127 +87,147 @@ export default function ResidentDashboard() {
 
   return (
     <ResidentLayout title="Dashboard">
-      <div className="p-4 space-y-5 max-w-4xl mx-auto">
-        <div className="flex items-center justify-between">
+      <div className="p-4 space-y-4 max-w-4xl mx-auto">
+        {/* Header Greeting */}
+        <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
           <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-full bg-emerald-700 text-white flex items-center justify-center font-extrabold text-base shadow-sm">
-              {userName.charAt(0)}
+            <div className="h-10 w-10 rounded-full bg-emerald-800 text-white flex items-center justify-center font-bold text-base shrink-0">
+              {userName.charAt(0).toUpperCase()}
             </div>
             <div>
-              <h3 className="font-black text-slate-900 text-base flex items-center gap-1">
+              <h2 className="font-extrabold text-slate-900 text-base flex items-center gap-1">
                 Hello, {userName}! 👋
-              </h3>
-              <p className="text-xs text-slate-500 font-medium">
+              </h2>
+              <p className="text-xs text-slate-400 font-medium">
                 Let's keep our barangay clean.
               </p>
             </div>
           </div>
-
           <button
-            type="button"
-            className="relative p-2.5 text-slate-500 hover:text-slate-700 bg-slate-50 rounded-xl border border-slate-200"
+            className="p-2 rounded-full bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-all text-xs"
+            title="Notifications"
           >
             🔔
-            <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-rose-500 rounded-full" />
           </button>
         </div>
 
+        {/* Total Reports */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200">
+          <span className="text-3xl font-black text-slate-900">{stats.total}</span>
+          <p className="text-xs font-bold text-slate-400 mt-0.5">Total Reports</p>
+        </div>
+
+        {/* Status Grid */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm col-span-2">
-            <span className="text-3xl font-black text-slate-900">{totalCount}</span>
-            <p className="text-xs font-semibold text-slate-500 mt-0.5">Total Reports</p>
+          <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200/60">
+            <span className="text-2xl font-black text-amber-800">{stats.pending}</span>
+            <p className="text-xs font-bold text-amber-700 mt-0.5">Pending</p>
           </div>
-
-          <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100 shadow-sm">
-            <span className="text-2xl font-black text-amber-600">{pendingCount}</span>
-            <p className="text-xs font-semibold text-amber-800 mt-0.5">Pending</p>
+          <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200/60">
+            <span className="text-2xl font-black text-blue-800">{stats.ongoing}</span>
+            <p className="text-xs font-bold text-blue-700 mt-0.5">On-going</p>
           </div>
-
-          <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 shadow-sm">
-            <span className="text-2xl font-black text-blue-600">{ongoingCount}</span>
-            <p className="text-xs font-semibold text-blue-800 mt-0.5">On-going</p>
+          <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200/60">
+            <span className="text-2xl font-black text-emerald-800">{stats.resolved}</span>
+            <p className="text-xs font-bold text-emerald-700 mt-0.5">Resolved</p>
           </div>
-
-          <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 shadow-sm">
-            <span className="text-2xl font-black text-emerald-600">{resolvedCount}</span>
-            <p className="text-xs font-semibold text-emerald-800 mt-0.5">Resolved</p>
-          </div>
-
-          <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100 shadow-sm">
-            <span className="text-2xl font-black text-rose-600">{rejectedCount}</span>
-            <p className="text-xs font-semibold text-rose-800 mt-0.5">Rejected</p>
+          <div className="bg-rose-50 p-4 rounded-2xl border border-rose-200/60">
+            <span className="text-2xl font-black text-rose-800">{stats.rejected}</span>
+            <p className="text-xs font-bold text-rose-700 mt-0.5">Rejected</p>
           </div>
         </div>
 
-        <div>
-          <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">
+        {/* Quick Actions */}
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-extrabold text-slate-400 tracking-wider uppercase">
             Quick Actions
-          </h3>
+          </p>
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => navigate("/report/new")}
-              className="py-3 px-4 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+              className="py-3 px-4 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
             >
-              ⊕ Submit Report
+              <span>⊕</span> Submit Report
             </button>
             <button
               onClick={() => navigate("/reports")}
-              className="py-3 px-4 bg-white hover:bg-slate-50 text-emerald-800 border border-emerald-300 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+              className="py-3 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-emerald-900 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
-              📄 My Reports
+              <span>📋</span> My Reports
             </button>
           </div>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
+        {/* Recent Updates */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-extrabold text-slate-400 tracking-wider uppercase">
               Recent Updates
-            </h3>
+            </p>
             <button
               onClick={() => navigate("/reports")}
-              className="text-xs font-bold text-emerald-700 hover:underline"
+              className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
             >
               View All
             </button>
           </div>
 
-          <div className="space-y-2">
-            {reports.map((report) => (
-              <div
-             key={report.id}
-             onClick={() => navigate(`/report/${report.id}`)}
-             className="bg-white p-4 rounded-2xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer flex items-center justify-between gap-3 group">
-                <div>
-                  <h4 className="font-extrabold text-slate-900 text-xs group-hover:text-emerald-700 transition-colors">
-                    {report.waste_type || report.title || "Waste Concern Report"}
-                  </h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    {new Date(report.created_at).toLocaleString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
+          {loading ? (
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center text-xs font-semibold text-slate-400">
+              Loading recent updates...
+            </div>
+          ) : recentReports.length === 0 ? (
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center text-xs font-medium text-slate-400">
+              No reports submitted yet.
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {recentReports.map((report) => (
+                <div
+                  key={report.id}
+                  onClick={() => navigate(`/report/${report.id}`)}
+                  className="bg-white p-3.5 rounded-2xl border border-slate-200 hover:border-emerald-500 transition-all cursor-pointer flex items-center justify-between gap-3 group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-12 w-12 rounded-xl bg-slate-100 overflow-hidden border border-slate-200 shrink-0">
+                      {report.image_url || report.image_urls?.[0] ? (
+                        <img
+                          src={report.image_url || report.image_urls?.[0]}
+                          alt="Report thumbnail"
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[9px] text-slate-400">
+                          No Photo
+                        </div>
+                      )}
+                    </div>
 
-                <div className="flex items-center gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-extrabold text-slate-900 truncate group-hover:text-emerald-700 transition-colors">
+                        {report.category || report.title || "Waste Concern Report"}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {new Date(report.created_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusBadgeClass(
+                    className={`px-3 py-1 rounded-full text-[11px] font-bold border shrink-0 ${getStatusBadgeClass(
                       report.status
                     )}`}
                   >
                     {report.status}
                   </span>
-                  <span className="text-slate-400 group-hover:text-emerald-600 font-bold">
-                    →
-                  </span>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </ResidentLayout>

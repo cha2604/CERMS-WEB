@@ -1,448 +1,503 @@
-// pages/admin/Dashboard.tsx
-//
-// Matches wireframe screen 8 "Admin (Web Dashboard)".
-// Assumes it lives at src/pages/admin/Dashboard.tsx so that
-// `../../lib/...` resolves the same way Register.tsx does.
-//
-// Requires: npm install chart.js react-chartjs-2 react-icons
-
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Line, Doughnut } from "react-chartjs-2";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  ArcElement,
-  Tooltip,
-  Legend,
-} from "chart.js";
-import {
-  FiGrid,
-  FiFileText,
-  FiMap,
-  FiBarChart2,
-  FiUsers,
-  FiSettings,
-  FiLogOut,
-  FiChevronDown,
-} from "react-icons/fi";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
-import {
-  getAdminStats,
-  getSeverityBreakdown,
-  getWeeklyReportsOverview,
-  getAdminRecentReports,
-  type AdminReportRow,
-  type StatusCounts,
-  type SeverityCounts,
-  type WeeklyPoint,
-} from "../../lib/DashboardQueries";
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  ArcElement,
-  Tooltip,
-  Legend
-);
+interface UserProfile {
+  id: string;
+  full_name?: string;
+  name?: string;
+  email?: string;
+  role: "resident" | "manager" | "admin" | string;
+  status?: string;
+}
 
-const STATUS_STYLES: Record<string, string> = {
-  Pending: "bg-blue-50 text-blue-700",
-  Ongoing: "bg-amber-50 text-amber-700",
-  Resolved: "bg-green-50 text-green-700",
-  Rejected: "bg-red-50 text-red-700",
-};
-
-const NAV_ITEMS = [
-  { label: "Dashboard", icon: FiGrid, to: "/admin/dashboard" },
-  { label: "Reports", icon: FiFileText, to: "/admin/reports" },
-  { label: "Map", icon: FiMap, to: "/admin/map" },
-  { label: "Analytics", icon: FiBarChart2, to: "/admin/analytics" },
-  { label: "Users", icon: FiUsers, to: "/admin/users" },
-  { label: "Settings", icon: FiSettings, to: "/admin/settings" },
-];
+interface ManagerStats {
+  totalReports: number;
+  pendingReports: number;
+  ongoingReports: number;
+  resolvedReports: number;
+  rejectedReports: number;
+}
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<"users" | "manager_ops">("users");
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const [adminName, setAdminName] = useState("Admin");
-  const [stats, setStats] = useState<StatusCounts | null>(null);
-  const [severity, setSeverity] = useState<SeverityCounts | null>(null);
-  const [weekly, setWeekly] = useState<WeeklyPoint[]>([]);
-  const [recent, setRecent] = useState<AdminReportRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newRole, setNewRole] = useState<"resident" | "manager" | "admin">("resident");
+
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+  const [reportsList, setReportsList] = useState<any[]>([]);
+
+  const [managerStats, setManagerStats] = useState<ManagerStats>({
+    totalReports: 0,
+    pendingReports: 0,
+    ongoingReports: 0,
+    resolvedReports: 0,
+    rejectedReports: 0,
+  });
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  const fetchUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      setErrorMessage(null);
+      const { data, error } = await supabase.from("profiles").select("*");
+
+      if (error) throw error;
+      setUsers((data as UserProfile[]) || []);
+    } catch (err: any) {
+      console.error("Fetch Error:", err);
+      setErrorMessage(err.message || "Failed to load profiles table.");
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const fetchManagerOps = async () => {
+    try {
+      setLoadingStats(true);
+      const { data, error } = await supabase
+        .from("reports")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        setReportsList(data);
+        setManagerStats({
+          totalReports: data.length,
+          pendingReports: data.filter((r) => r.status?.toLowerCase() === "pending").length,
+          ongoingReports: data.filter((r) =>
+            ["ongoing", "on-going", "active", "in progress"].includes(r.status?.toLowerCase())
+          ).length,
+          resolvedReports: data.filter((r) =>
+            ["resolved", "closed", "cleared"].includes(r.status?.toLowerCase())
+          ).length,
+          rejectedReports: data.filter((r) => r.status?.toLowerCase() === "rejected").length,
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   useEffect(() => {
-    let isMounted = true;
+    fetchUsers();
+  }, []);
 
-    async function load() {
-      setLoading(true);
-      setErrorMessage("");
-
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
-          navigate("/login");
-          return;
-        }
-
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name, role")
-          .eq("id", user.id)
-          .single();
-
-        if (profile?.role !== "admin") {
-          navigate("/dashboard");
-          return;
-        }
-
-        const [statCounts, severityCounts, weeklyPoints, recentReports] =
-          await Promise.all([
-            getAdminStats(),
-            getSeverityBreakdown(),
-            getWeeklyReportsOverview(),
-            getAdminRecentReports(10),
-          ]);
-
-        if (!isMounted) return;
-
-        setAdminName(profile?.full_name || "Admin");
-        setStats(statCounts);
-        setSeverity(severityCounts);
-        setWeekly(weeklyPoints);
-        setRecent(recentReports);
-      } catch (err) {
-        console.error("Failed to load admin dashboard:", err);
-        if (isMounted) {
-          setErrorMessage("Couldn't load dashboard data. Try refreshing.");
-        }
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+  useEffect(() => {
+    if (activeTab === "manager_ops") {
+      fetchManagerOps();
     }
+  }, [activeTab]);
 
-    load();
-    return () => {
-      isMounted = false;
-    };
-  }, [navigate]);
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEmail.trim()) return;
 
-  const lineData = useMemo(
-    () => ({
-      labels: weekly.map((w) => w.day),
-      datasets: [
-        {
-          label: "Pending",
-          data: weekly.map((w) => w.pending),
-          borderColor: "#f59e0b",
-          backgroundColor: "#f59e0b",
-          tension: 0.35,
-        },
-        {
-          label: "On-going",
-          data: weekly.map((w) => w.ongoing),
-          borderColor: "#3b82f6",
-          backgroundColor: "#3b82f6",
-          tension: 0.35,
-        },
-        {
-          label: "Resolved",
-          data: weekly.map((w) => w.resolved),
-          borderColor: "#16a34a",
-          backgroundColor: "#16a34a",
-          tension: 0.35,
-        },
-        {
-          label: "Rejected",
-          data: weekly.map((w) => w.rejected),
-          borderColor: "#dc2626",
-          backgroundColor: "#dc2626",
-          tension: 0.35,
-        },
-      ],
-    }),
-    [weekly]
-  );
+    try {
+      const newProfile = {
+        id: crypto.randomUUID(),
+        full_name: newName || "New User",
+        email: newEmail,
+        // Send strictly lowercased role to satisfy 'profiles_role_check'
+        role: newRole.toLowerCase(),
+      };
 
-  const donutData = useMemo(
-    () => ({
-      labels: ["Critical", "High", "Moderate", "Low", "Very Low"],
-      datasets: [
-        {
-          data: severity
-            ? [
-                severity.critical,
-                severity.high,
-                severity.moderate,
-                severity.low,
-                severity.veryLow,
-              ]
-            : [0, 0, 0, 0, 0],
-          backgroundColor: [
-            "#dc2626",
-            "#f97316",
-            "#eab308",
-            "#16a34a",
-            "#0ea5e9",
-          ],
-          borderWidth: 0,
-        },
-      ],
-    }),
-    [severity]
-  );
+      const { data, error } = await supabase.from("profiles").insert([newProfile]).select();
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    navigate("/login");
-  }
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setUsers((prev) => [...prev, data[0] as UserProfile]);
+      } else {
+        await fetchUsers();
+      }
+
+      setShowAddModal(false);
+      setNewName("");
+      setNewEmail("");
+      setNewRole("resident");
+    } catch (err: any) {
+      alert("Error adding user profile: " + err.message);
+    }
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deleteUserId) return;
+
+    try {
+      const { error } = await supabase.from("profiles").delete().eq("id", deleteUserId);
+      if (error) throw error;
+
+      setUsers((prev) => prev.filter((u) => u.id !== deleteUserId));
+      setDeleteUserId(null);
+    } catch (err: any) {
+      alert("Error deleting profile: " + err.message);
+    }
+  };
+
+  const totalAccounts = users.length;
+  const totalResidents = users.filter((u) => u.role?.toLowerCase() === "resident").length;
+  const totalManagers = users.filter((u) => u.role?.toLowerCase() === "manager").length;
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <aside className="flex w-60 shrink-0 flex-col bg-green-900 text-white">
-        <div className="flex items-center gap-2 px-6 py-6">
-          <span className="text-xl">♻️</span>
-          <span className="text-lg font-bold">CERMS</span>
+    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+      <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0">
+        <div className="p-5 border-b border-slate-800 flex items-center gap-2">
+          <span className="text-xl font-black tracking-wider text-emerald-400">CERMS</span>
+          <span className="text-[10px] bg-rose-600 px-2 py-0.5 rounded-full font-bold uppercase text-white">
+            Admin
+          </span>
         </div>
 
-        <nav className="mt-4 flex-1 space-y-1 px-3">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const active = item.label === "Dashboard";
-            return (
-              <Link
-                key={item.label}
-                to={item.to}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-                  active
-                    ? "bg-green-700 text-white"
-                    : "text-green-100 hover:bg-green-800"
-                }`}
-              >
-                <Icon size={18} />
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="p-4 space-y-1 text-xs font-bold flex-1">
+          <button
+            onClick={() => setActiveTab("users")}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
+              activeTab === "users" ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800/50"
+            }`}
+          >
+            👥 User Management
+          </button>
+          <button
+            onClick={() => setActiveTab("manager_ops")}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
+              activeTab === "manager_ops" ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800/50"
+            }`}
+          >
+            📊 View Manager Operations
+          </button>
         </nav>
 
-        <button
-          onClick={handleLogout}
-          className="mx-3 mb-6 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-green-100 transition hover:bg-green-800"
-        >
-          <FiLogOut size={18} />
-          Logout
-        </button>
+        <div className="p-4 border-t border-slate-800">
+          <button
+            onClick={() => navigate("/login")}
+            className="w-full py-2 px-3 bg-slate-950 hover:bg-rose-900 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+          >
+            Logout
+          </button>
+        </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
-        {/* Top bar */}
-        <div className="flex items-center justify-between border-b border-gray-200 bg-white px-8 py-4">
-          <h1 className="text-xl font-bold text-slate-800">Dashboard</h1>
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-            <div className="h-8 w-8 rounded-full bg-green-100" />
-            {adminName}
-            <FiChevronDown size={16} className="text-gray-400" />
-          </div>
-        </div>
-
-        <div className="px-8 py-6">
-          {errorMessage && (
-            <div className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">
-              {errorMessage}
-            </div>
-          )}
-
-          {/* Stat cards */}
-          <div className="grid grid-cols-5 gap-4">
-            <AdminStatCard
-              label="Total Reports"
-              value={stats?.total}
-              loading={loading}
-              className="bg-white text-slate-800"
-            />
-            <AdminStatCard
-              label="Pending"
-              value={stats?.pending}
-              loading={loading}
-              className="bg-blue-50 text-blue-700"
-            />
-            <AdminStatCard
-              label="On-going"
-              value={stats?.ongoing}
-              loading={loading}
-              className="bg-amber-50 text-amber-700"
-            />
-            <AdminStatCard
-              label="Resolved"
-              value={stats?.resolved}
-              loading={loading}
-              className="bg-green-50 text-green-700"
-            />
-            <AdminStatCard
-              label="Rejected"
-              value={stats?.rejected}
-              loading={loading}
-              className="bg-red-50 text-red-700"
-            />
+      <main className="flex-1 overflow-y-auto p-6 space-y-6">
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-900">
+              {activeTab === "users" ? "Admin Dashboard" : "Manager Operations View"}
+            </h1>
+            <p className="text-xs text-slate-500 font-medium">
+              {activeTab === "users"
+                ? "Manage registered system accounts, create users, and remove permissions."
+                : "Read-only overview of live barangay manager operations and dispatch progress."}
+            </p>
           </div>
 
-          {/* Charts */}
-          <div className="mt-6 grid grid-cols-3 gap-4">
-            <div className="col-span-2 rounded-2xl bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-sm font-semibold text-slate-700">
-                Reports Overview (This Week)
-              </h2>
-              <div className="h-64">
-                <Line
-                  data={lineData}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: "bottom" } },
-                    scales: { y: { beginAtZero: true, ticks: { stepSize: 10 } } },
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-sm font-semibold text-slate-700">
-                Reports by Severity
-              </h2>
-              <div className="h-64">
-                <Doughnut
-                  data={donutData}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: "bottom", labels: { boxWidth: 10 } } },
-                  }}
-                />
-              </div>
-            </div>
+          <div className="flex items-center gap-2">
+            {activeTab === "users" && (
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+              >
+                + Add New User
+              </button>
+            )}
           </div>
+        </header>
 
-          {/* Recent Reports table */}
-          <div className="mt-6 rounded-2xl bg-white p-5 shadow-sm">
-            <h2 className="mb-4 text-sm font-semibold text-slate-700">
-              Recent Reports
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-400">
-                    <th className="pb-3 pr-4 font-medium">ID</th>
-                    <th className="pb-3 pr-4 font-medium">Type of Concern</th>
-                    <th className="pb-3 pr-4 font-medium">Location</th>
-                    <th className="pb-3 pr-4 font-medium">Reporter</th>
-                    <th className="pb-3 pr-4 font-medium">Status</th>
-                    <th className="pb-3 font-medium">Date Reported</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading &&
-                    [1, 2, 3, 4].map((i) => (
-                      <tr key={i}>
-                        <td colSpan={6} className="py-3">
-                          <div className="h-4 animate-pulse rounded bg-gray-100" />
-                        </td>
-                      </tr>
-                    ))}
-
-                  {!loading && recent.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="py-6 text-center text-gray-400">
-                        No reports yet.
-                      </td>
-                    </tr>
-                  )}
-
-                  {!loading &&
-                    recent.map((report) => (
-                      <tr
-                        key={report.id}
-                        onClick={() => navigate(`/admin/reports/${report.id}`)}
-                        className="cursor-pointer border-b border-gray-50 transition hover:bg-gray-50"
-                      >
-                        <td className="py-3 pr-4 font-medium text-slate-700">
-                          #{report.id.slice(0, 8)}
-                        </td>
-                        <td className="py-3 pr-4 text-slate-600">
-                          {report.category}
-                        </td>
-                        <td className="py-3 pr-4 text-slate-600">
-                          {report.latitude && report.longitude
-                            ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}`
-                            : "—"}
-                        </td>
-                        <td className="py-3 pr-4 text-slate-600">
-                          {report.reporter_name}
-                        </td>
-                        <td className="py-3 pr-4">
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                              STATUS_STYLES[report.status] ??
-                              "bg-gray-100 text-gray-700"
-                            }`}
-                          >
-                            {report.status}
-                          </span>
-                        </td>
-                        <td className="py-3 text-slate-500">
-                          {new Date(report.created_at).toLocaleString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
+        {errorMessage && (
+          <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-bold">
+            ⚠️ Database Alert: {errorMessage}
           </div>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function AdminStatCard({
-  label,
-  value,
-  loading,
-  className,
-}: {
-  label: string;
-  value: number | undefined;
-  loading: boolean;
-  className: string;
-}) {
-  return (
-    <div className={`rounded-2xl p-4 shadow-sm ${className}`}>
-      <p className="text-2xl font-bold">
-        {loading ? (
-          <span className="inline-block h-7 w-8 animate-pulse rounded bg-current/20" />
-        ) : (
-          value ?? 0
         )}
-      </p>
-      <p className="mt-1 text-xs font-medium opacity-80">{label}</p>
+
+        {activeTab === "users" ? (
+          <>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <span className="text-3xl font-black text-slate-900">{totalAccounts}</span>
+                <p className="text-xs font-bold text-slate-400 mt-1">Total System Accounts</p>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <span className="text-3xl font-black text-emerald-600">{totalResidents}</span>
+                <p className="text-xs font-bold text-slate-400 mt-1">Registered Residents</p>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <span className="text-3xl font-black text-blue-600">{totalManagers}</span>
+                <p className="text-xs font-bold text-slate-400 mt-1">Barangay Managers / Officials</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-slate-100">
+                <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
+                  System Users & Access Control
+                </h3>
+              </div>
+
+              {loadingUsers ? (
+                <div className="p-8 text-center text-xs font-semibold text-slate-400">
+                  Loading user records...
+                </div>
+              ) : users.length === 0 ? (
+                <div className="p-8 text-center text-xs font-medium text-slate-400">
+                  No accounts stored in profiles table. Click "+ Add New User" to populate data.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 font-extrabold uppercase tracking-wider">
+                        <th className="px-5 py-3.5">User Name</th>
+                        <th className="px-5 py-3.5">Email Address</th>
+                        <th className="px-5 py-3.5">Current Role</th>
+                        <th className="px-5 py-3.5">Account Status</th>
+                        <th className="px-5 py-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-semibold">
+                      {users.map((user) => (
+                        <tr key={user.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-5 py-4 font-bold text-slate-900">
+                            {user.full_name || user.name || "Unnamed Account"}
+                          </td>
+                          <td className="px-5 py-4 text-slate-600 font-mono">
+                            {user.email || "N/A"}
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-200 capitalize">
+                              {user.role}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              {user.status || "Active"}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <button
+                              onClick={() => setDeleteUserId(user.id)}
+                              className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-bold border border-rose-200 transition-all cursor-pointer"
+                            >
+                              Delete Account
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="space-y-6">
+            {loadingStats ? (
+              <div className="p-8 text-center text-xs font-semibold text-slate-400 bg-white rounded-2xl border border-slate-200">
+                Fetching live manager metrics...
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <span className="text-3xl font-black text-slate-900">
+                      {managerStats.totalReports}
+                    </span>
+                    <p className="text-xs font-bold text-slate-400 mt-1">Total Reports Received</p>
+                  </div>
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <span className="text-3xl font-black text-amber-600">
+                      {managerStats.pendingReports}
+                    </span>
+                    <p className="text-xs font-bold text-slate-400 mt-1">Pending Review</p>
+                  </div>
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <span className="text-3xl font-black text-blue-600">
+                      {managerStats.ongoingReports}
+                    </span>
+                    <p className="text-xs font-bold text-slate-400 mt-1">Active Dispatches</p>
+                  </div>
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <span className="text-3xl font-black text-emerald-600">
+                      {managerStats.resolvedReports}
+                    </span>
+                    <p className="text-xs font-bold text-slate-400 mt-1">Closed / Cleared</p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+                    <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
+                      Live Barangay Manager Operations
+                    </h3>
+                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                      Real-Time Feed
+                    </span>
+                  </div>
+
+                  {reportsList.length === 0 ? (
+                    <div className="p-8 text-center text-xs font-medium text-slate-400">
+                      No active reports recorded in system logs.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 font-extrabold uppercase tracking-wider">
+                            <th className="px-5 py-3.5">Incident / Report ID</th>
+                            <th className="px-5 py-3.5">Title / Type</th>
+                            <th className="px-5 py-3.5">Status</th>
+                            <th className="px-5 py-3.5">Date Logged</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-semibold">
+                          {reportsList.map((item) => (
+                            <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="px-5 py-4 font-mono text-slate-500">
+                                #{item.id?.slice(0, 8)}
+                              </td>
+                              <td className="px-5 py-4 text-slate-900 font-bold">
+                                {item.title || item.category || "General Report"}
+                              </td>
+                              <td className="px-5 py-4">
+                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-200 capitalize">
+                                  {item.status || "Pending"}
+                                </span>
+                              </td>
+                              <td className="px-5 py-4 text-slate-500 font-mono">
+                                {item.created_at ? new Date(item.created_at).toLocaleDateString() : "N/A"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <h3 className="text-sm font-extrabold text-slate-900">
+                    Live Operational Overview
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    This panel presents live metrics and dispatch progress handled by the Barangay Operations Manager. Admin access allows view-only auditing without disrupting manager operations.
+                  </p>
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs font-medium text-slate-600">
+                    Active Barangay Manager Operations Status: <strong className="text-emerald-700 font-bold">Operational</strong>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </main>
+
+      {showAddModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white w-full max-w-md rounded-2xl border border-slate-200 shadow-xl p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-extrabold text-slate-900">Add New User</h3>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddUser} className="space-y-4">
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Full Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Maria Santos"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Email Address</label>
+                <input
+                  type="email"
+                  placeholder="e.g. user@cerms.test"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Assign Role</label>
+                <select
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value as "resident" | "manager" | "admin")}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="resident">Resident</option>
+                  <option value="manager">Manager</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Save User
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {deleteUserId && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white w-full max-w-sm rounded-2xl border border-slate-200 shadow-xl p-6 space-y-4">
+            <h3 className="text-base font-extrabold text-slate-900">Confirm Deletion</h3>
+            <p className="text-xs text-slate-600 font-medium">
+              Are you sure you want to delete this user profile? This action cannot be undone.
+            </p>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteUserId(null)}
+                className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteUser}
+                className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Delete Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

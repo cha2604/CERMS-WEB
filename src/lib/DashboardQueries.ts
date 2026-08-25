@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 
-export type ReportStatus = "Pending" | "Ongoing" | "Resolved" | "Rejected";
+// Support both database variations of Ongoing
+export type ReportStatus = "Pending" | "Ongoing" | "On-going" | "Resolved" | "Rejected";
 export type ReportSeverity = "Very Low" | "Low" | "Moderate" | "High" | "Critical";
 
 export interface ReportRow {
@@ -13,21 +14,7 @@ export interface ReportRow {
   latitude: number | null;
   longitude: number | null;
   image_url: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ReportRow {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  status: ReportStatus;
-  severity: ReportSeverity | null;
-  latitude: number | null;
-  longitude: number | null;
-  image_url: string | null;
-  image_urls: string[];
+  image_urls?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -69,11 +56,11 @@ const emptyStatusCounts: StatusCounts = {
   rejected: 0,
 };
 
-function tallyStatuses(rows: { status: ReportStatus }[]): StatusCounts {
+function tallyStatuses(rows: { status: string }[]): StatusCounts {
   const counts = { ...emptyStatusCounts, total: rows.length };
   for (const row of rows) {
     if (row.status === "Pending") counts.pending++;
-    else if (row.status === "Ongoing") counts.ongoing++;
+    else if (row.status === "Ongoing" || row.status === "On-going") counts.ongoing++;
     else if (row.status === "Resolved") counts.resolved++;
     else if (row.status === "Rejected") counts.rejected++;
   }
@@ -89,7 +76,7 @@ export async function getResidentStats(userId: string): Promise<StatusCounts> {
     .eq("user_id", userId);
 
   if (error) throw error;
-  return tallyStatuses((data ?? []) as { status: ReportStatus }[]);
+  return tallyStatuses((data ?? []) as { status: string }[]);
 }
 
 export async function getResidentRecentReports(
@@ -109,7 +96,7 @@ export async function getResidentRecentReports(
 
 export async function getResidentReports(
   userId: string,
-  status?: ReportStatus | "All"
+  status?: string
 ): Promise<ReportRow[]> {
   let query = supabase
     .from("reports")
@@ -118,7 +105,11 @@ export async function getResidentReports(
     .order("created_at", { ascending: false });
 
   if (status && status !== "All") {
-    query = query.eq("status", status);
+    if (status === "Ongoing" || status === "On-going") {
+      query = query.in("status", ["Ongoing", "On-going"]);
+    } else {
+      query = query.eq("status", status);
+    }
   }
 
   const { data, error } = await query;
@@ -132,7 +123,7 @@ export async function getAdminStats(): Promise<StatusCounts> {
   const { data, error } = await supabase.from("reports").select("status");
 
   if (error) throw error;
-  return tallyStatuses((data ?? []) as { status: ReportStatus }[]);
+  return tallyStatuses((data ?? []) as { status: string }[]);
 }
 
 export async function getSeverityBreakdown(): Promise<SeverityCounts> {
@@ -194,12 +185,12 @@ export async function getWeeklyReportsOverview(): Promise<WeeklyPoint[]> {
     rejected: 0,
   }));
 
-  for (const row of (data ?? []) as { status: ReportStatus; created_at: string }[]) {
+  for (const row of (data ?? []) as { status: string; created_at: string }[]) {
     const created = new Date(row.created_at);
     const idx = (created.getDay() + 6) % 7;
     const point = points[idx];
     if (row.status === "Pending") point.pending++;
-    else if (row.status === "Ongoing") point.ongoing++;
+    else if (row.status === "Ongoing" || row.status === "On-going") point.ongoing++;
     else if (row.status === "Resolved") point.resolved++;
     else if (row.status === "Rejected") point.rejected++;
   }

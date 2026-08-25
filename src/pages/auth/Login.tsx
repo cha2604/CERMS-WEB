@@ -11,6 +11,7 @@ import {
   verifyPhoneOtp,
   getCurrentUserRole,
 } from "../../lib/authHelpers";
+import { supabase } from "../../lib/supabase";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -29,11 +30,18 @@ export default function Login() {
   const [otpCode, setOtpCode] = useState("");
 
   async function redirectByRole() {
-    const role = await getCurrentUserRole();
-    if (role === "admin") {
-      navigate("/admin/dashboard");
-    } else {
-      navigate("/dashboard");
+    const activeRole = (await getCurrentUserRole()) || "resident";
+
+    switch (activeRole.toLowerCase()) {
+      case "admin":
+        navigate("/admin/dashboard");
+        break;
+      case "manager":
+        navigate("/manager/dashboard");
+        break;
+      default:
+        navigate("/dashboard");
+        break;
     }
   }
 
@@ -60,7 +68,13 @@ export default function Login() {
   async function handleGoogleLogin() {
     setErrorMessage("");
     try {
-      await loginWithGoogle();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+      if (error) throw error;
     } catch (error) {
       console.error("Google login failed:", error);
       setErrorMessage(
@@ -132,21 +146,23 @@ export default function Login() {
           <button
             onClick={() => navigate("/")}
             aria-label="Go back"
-            className="rounded-full p-2 text-green-700 transition hover:bg-green-50"
+            className="rounded-full p-2 text-green-700 transition hover:bg-green-50 cursor-pointer"
           >
             <FiArrowLeft size={20} />
           </button>
-          <h1 className="text-lg font-bold text-green-800">CERMS</h1>
+          <h1 className="text-lg font-bold text-green-800 tracking-wider">CERMS</h1>
           <span className="w-9" />
         </div>
 
         <div className="mt-4 text-center">
           <h2 className="text-2xl font-bold text-slate-800">Welcome Back!</h2>
-          <p className="mt-1 text-sm text-gray-500">Login to your account</p>
+          <p className="mt-1 text-xs text-slate-500 font-semibold">
+            Login to your account
+          </p>
         </div>
 
         {!showPhoneFlow && (
-          <form onSubmit={handleEmailLogin} className="mt-6 space-y-5">
+          <form onSubmit={handleEmailLogin} className="mt-5 space-y-4">
             <Input
               label="Email"
               type="email"
@@ -162,13 +178,15 @@ export default function Login() {
               label="Password"
               placeholder="Enter your password"
               value={password}
-              onChange={(e: { target: { value: SetStateAction<string>; }; }) => setPassword(e.target.value)}
+              onChange={(e: { target: { value: SetStateAction<string> } }) =>
+                setPassword(e.target.value)
+              }
               autoComplete="current-password"
               required
             />
 
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 text-slate-600">
+            <div className="flex items-center justify-between text-xs">
+              <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={rememberMe}
@@ -177,7 +195,7 @@ export default function Login() {
                 />
                 Remember me
               </label>
-              <Link to="/forgot-password" className="text-green-700 hover:underline">
+              <Link to="/forgot-password" className="text-green-700 hover:underline font-semibold">
                 Forgot password?
               </Link>
             </div>
@@ -186,7 +204,7 @@ export default function Login() {
               {loading ? "Logging in..." : "Login"}
             </Button>
 
-            <p className="text-center text-sm text-gray-500">
+            <p className="text-center text-xs text-slate-500">
               Don't have an account?{" "}
               <Link to="/register" className="font-semibold text-green-700 hover:underline">
                 Register here
@@ -195,14 +213,14 @@ export default function Login() {
 
             <div className="flex items-center gap-3 py-1">
               <div className="h-px flex-1 bg-slate-200" />
-              <span className="text-xs font-medium text-gray-400">OR</span>
+              <span className="text-[10px] font-bold text-slate-400">OR</span>
               <div className="h-px flex-1 bg-slate-200" />
             </div>
 
             <button
               type="button"
               onClick={handleGoogleLogin}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 cursor-pointer"
             >
               <svg width="18" height="18" viewBox="0 0 48 48">
                 <path
@@ -228,7 +246,7 @@ export default function Login() {
             <button
               type="button"
               onClick={openPhoneFlow}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 cursor-pointer"
             >
               <FiPhone size={16} />
               Login with Phone Number
@@ -237,7 +255,7 @@ export default function Login() {
         )}
 
         {showPhoneFlow && !otpSent && (
-          <form onSubmit={handleSendOtp} className="mt-6 space-y-5">
+          <form onSubmit={handleSendOtp} className="mt-5 space-y-4">
             <Input
               label="Mobile Number"
               type="tel"
@@ -255,7 +273,7 @@ export default function Login() {
             <button
               type="button"
               onClick={backToEmail}
-              className="w-full text-center text-sm text-green-700 hover:underline"
+              className="w-full text-center text-xs font-semibold text-green-700 hover:underline cursor-pointer"
             >
               Back to Email Login
             </button>
@@ -263,7 +281,7 @@ export default function Login() {
         )}
 
         {showPhoneFlow && otpSent && (
-          <form onSubmit={handleVerifyOtp} className="mt-6 space-y-5">
+          <form onSubmit={handleVerifyOtp} className="mt-5 space-y-4">
             <Input
               label="Verification Code"
               type="text"
@@ -282,7 +300,7 @@ export default function Login() {
             <button
               type="button"
               onClick={() => setOtpSent(false)}
-              className="w-full text-center text-sm text-green-700 hover:underline"
+              className="w-full text-center text-xs font-semibold text-green-700 hover:underline cursor-pointer"
             >
               Use a different number
             </button>
@@ -290,21 +308,17 @@ export default function Login() {
         )}
 
         {successMessage && (
-          <div className="mt-5 rounded-xl bg-green-50 p-4 text-center text-sm text-green-800">
+          <div className="mt-4 rounded-xl bg-green-50 p-3 text-center text-xs font-bold text-green-800">
             {successMessage}
           </div>
         )}
 
         {errorMessage && (
-          <div className="mt-5 rounded-xl bg-red-50 p-4 text-center text-sm text-red-700">
+          <div className="mt-4 rounded-xl bg-red-50 p-3 text-center text-xs font-bold text-red-700">
             {errorMessage}
           </div>
         )}
       </Card>
     </div>
   );
-}
-
-function loginWithGoogle() {
-  throw new Error("Function not implemented.");
 }

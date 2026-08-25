@@ -1,11 +1,19 @@
 import { supabase } from "./supabase";
+
 export async function registerWithEmail(
-fullName: string, email: string, password: string, address: string) {
+  fullName: string,
+  email: string,
+  password: string,
+  address: string
+) {
   const { data, error } = await supabase.auth.signUp({
     email: email.trim(),
     password,
     options: {
-      data: { full_name: fullName.trim() },
+      data: {
+        full_name: fullName.trim(),
+        address: address.trim(),
+      },
     },
   });
 
@@ -33,7 +41,6 @@ export function formatPhoneNumber(raw: string): string {
   return digits;
 }
 
-
 export async function sendPhoneOtp(phone: string, fullName?: string) {
   const formatted = formatPhoneNumber(phone);
 
@@ -48,7 +55,6 @@ export async function sendPhoneOtp(phone: string, fullName?: string) {
   return data;
 }
 
-
 export async function verifyPhoneOtp(phone: string, token: string) {
   const formatted = formatPhoneNumber(phone);
 
@@ -62,7 +68,7 @@ export async function verifyPhoneOtp(phone: string, token: string) {
   return data;
 }
 
-export async function getCurrentUserRole(): Promise<"resident" | "admin" | null> {
+export async function getCurrentUserRole(): Promise<"resident" | "manager" | "admin" | null> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -75,6 +81,9 @@ export async function getCurrentUserRole(): Promise<"resident" | "admin" | null>
     .eq("id", user.id)
     .single();
 
-  if (error) throw error;
-  return (profile?.role as "resident" | "admin") ?? "resident";
+  if (error || !profile?.role) {
+    return "resident";
+  }
+
+  return profile.role.toLowerCase() as "resident" | "manager" | "admin";
 }
