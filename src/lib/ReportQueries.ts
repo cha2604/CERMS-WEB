@@ -9,11 +9,22 @@ export interface NewReportInput {
   latitude: number | null;
   longitude: number | null;
   photos: File[];
+  severity: string | null;
+  formattedAddress: string | null;
 }
 
 export async function submitReport(input: NewReportInput) {
-  const { userId, category, description, contactNumber, latitude, longitude, photos } =
-    input;
+  const {
+    userId,
+    category,
+    description,
+    contactNumber,
+    latitude,
+    longitude,
+    photos,
+    severity,
+    formattedAddress,
+  } = input;
 
   if (photos.length > 5) {
     throw new Error("You can upload a maximum of 5 photos.");
@@ -59,8 +70,9 @@ export async function submitReport(input: NewReportInput) {
       longitude,
       image_urls: imageUrls,
       status: "Pending",
-      severity: null,
+      severity,
       exif_data: exifData,
+      formatted_address: formattedAddress,
     })
     .select()
     .single();

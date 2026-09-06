@@ -1,19 +1,20 @@
 import { supabase } from "./supabase";
 
-export async function registerWithEmail(
-  fullName: string,
-  email: string,
-  password: string,
-  address: string
-) {
-  const { data, error } = await supabase.auth.signUp({
-    email: email.trim(),
-    password,
+export async function loginWithEmail(email: string, pass: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password: pass,
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function loginWithGoogle() {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
     options: {
-      data: {
-        full_name: fullName.trim(),
-        address: address.trim(),
-      },
+      redirectTo: `${window.location.origin}/auth/callback`,
     },
   });
 
@@ -21,69 +22,56 @@ export async function registerWithEmail(
   return data;
 }
 
-export async function loginWithEmail(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: email.trim(),
-    password,
+export async function registerWithEmail(
+  fullName: string,
+  email: string,
+  pass: string,
+  fullAddress: string
+) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password: pass,
+    options: {
+      data: {
+        full_name: fullName,
+        address: fullAddress,
+      },
+    },
   });
 
   if (error) throw error;
-  return data;
-}
 
-export function formatPhoneNumber(raw: string): string {
-  const digits = raw.replace(/[^\d+]/g, "");
-
-  if (digits.startsWith("+")) return digits;
-  if (digits.startsWith("09")) return `+63${digits.slice(1)}`;
-  if (digits.startsWith("63")) return `+${digits}`;
-
-  return digits;
-}
-
-export async function sendPhoneOtp(phone: string, fullName?: string) {
-  const formatted = formatPhoneNumber(phone);
-
-  const { data, error } = await supabase.auth.signInWithOtp({
-    phone: formatted,
-    options: fullName
-      ? { data: { full_name: fullName.trim() } }
-      : undefined,
-  });
-
-  if (error) throw error;
-  return data;
-}
-
-export async function verifyPhoneOtp(phone: string, token: string) {
-  const formatted = formatPhoneNumber(phone);
-
-  const { data, error } = await supabase.auth.verifyOtp({
-    phone: formatted,
-    token,
-    type: "sms",
-  });
-
-  if (error) throw error;
-  return data;
-}
-
-export async function getCurrentUserRole(): Promise<"resident" | "manager" | "admin" | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (error || !profile?.role) {
-    return "resident";
+  if (data.user) {
+    await supabase.from("profiles").upsert({
+      id: data.user.id,
+      full_name: fullName,
+      email: email,
+      address: fullAddress,
+      role: "resident",
+    });
   }
 
-  return profile.role.toLowerCase() as "resident" | "manager" | "admin";
+  return data;
+}
+
+export async function getAccountStatus() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { role: "resident", suspended: false };
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("role, status, suspended")
+      .eq("id", user.id)
+      .single();
+
+    if (error || !data) return { role: "resident", suspended: false };
+
+    return {
+      role: data.role === "admin" ? "admin" : "resident",
+      suspended: data.suspended || data.status === "suspended",
+    };
+  } catch (err) {
+    return { role: "resident", suspended: false };
+  }
 }

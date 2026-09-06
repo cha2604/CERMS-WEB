@@ -1,40 +1,57 @@
-import { useState, type InputHTMLAttributes, type ReactNode } from "react";
-import { FiEye, FiEyeOff, FiLock } from "react-icons/fi";
+import { useState } from "react";
+import { FiLock, FiEye, FiEyeOff } from "react-icons/fi";
 
-interface PasswordInputProps extends InputHTMLAttributes<HTMLInputElement> {
-  label: string;
-  icon?: ReactNode;
+export interface PasswordInputProps {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  label?: string;
+  placeholder?: string;
+  name?: string;
+  autoComplete?: string;
+  minLength?: number;
+  required?: boolean;
 }
 
 export default function PasswordInput({
+  value,
+  onChange,
   label,
-  icon,
-  ...props
+  placeholder = "Enter password",
+  name = "password",
+  autoComplete = "current-password",
+  minLength,
+  required = true,
 }: PasswordInputProps) {
-  const [visible, setVisible] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div className="flex flex-col gap-2">
-      <label className="text-sm font-semibold text-slate-700">{label}</label>
-
+    <div>
+      {label && (
+        <label className="mb-2 block text-sm font-semibold text-slate-700">
+          {label}
+        </label>
+      )}
       <div className="relative">
         <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
-          {icon ?? <FiLock size={16} />}
+          <FiLock size={16} />
         </span>
-
         <input
-          {...props}
-          type={visible ? "text" : "password"}
-          className="w-full rounded-xl border border-slate-300 py-3 pl-11 pr-11 outline-none transition focus:border-green-700 focus:ring-4 focus:ring-green-200"
+          type={showPassword ? "text" : "password"}
+          name={name}
+          required={required}
+          minLength={minLength}
+          autoComplete={autoComplete}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          className="w-full rounded-xl border border-slate-300 py-3 pl-11 pr-11 text-sm outline-none transition focus:border-green-700 focus:ring-4 focus:ring-green-200"
         />
-
         <button
           type="button"
-          onClick={() => setVisible((v) => !v)}
-          aria-label={visible ? "Hide password" : "Show password"}
-          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 transition hover:text-gray-600"
+          onClick={() => setShowPassword(!showPassword)}
+          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-slate-600 transition"
         >
-          {visible ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+          {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
         </button>
       </div>
     </div>

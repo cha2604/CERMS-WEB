@@ -1,9 +1,23 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
+import { Line } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Tooltip,
+  Legend,
+  Filler,
+} from "chart.js";
 import { supabase } from "../../lib/supabase";
+import { getMonthlyReportTrends, type MonthlyCount } from "../../lib/ZoneQueries";
 import AdminMap from "./Map";
 import "leaflet/dist/leaflet.css";
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
 const TANKULAN_CENTER: [number, number] = [8.360839, 124.867628];
 const TANKULAN_BOUNDS: [[number, number], [number, number]] = [
@@ -20,7 +34,7 @@ interface ReportRecord {
   longitude: number | null;
   location_name?: string;
   image_urls?: string[];
-  status: "Pending" | "Ongoing" | "Resolved" | "Rejected";
+  status: "Pending" | "Ongoing" | "On-going" | "Resolved" | "Rejected";
   severity?: string;
   created_at: string;
   reporter_name?: string;
@@ -32,31 +46,35 @@ interface ReportRecord {
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [reports, setReports] = useState<ReportRecord[]>([]);
+  const [monthlyTrends, setMonthlyTrends] = useState<MonthlyCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeView, setActiveView] = useState<"dashboard" | "map" | "reports" | "overview">("dashboard");
+  const [activeView, setActiveView] = useState<"dashboard" | "map" | "reports">("dashboard");
   const [reportTimeframe, setReportTimeframe] = useState<"today" | "monthly" | "yearly" | "resolved">("monthly");
-  const [selectedMonth, setSelectedMonth] = useState<string>("Aug");
-  const [selectedYear, setSelectedYear] = useState<string>("2026");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const currentMonthStr = new Date().toLocaleString("en-US", { month: "short" });
+  const currentYearStr = new Date().getFullYear().toString();
+  
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr);
+  const [selectedYear, setSelectedYear] = useState<string>(currentYearStr);
 
   useEffect(() => {
     async function loadDashboardData() {
       try {
         setLoading(true);
-        const { data, error } = await supabase
-          .from("reports")
-          .select("*, profiles(full_name)")
-          .order("created_at", { ascending: false });
-
-        if (error) {
-          const { data: fallbackData } = await supabase
+        const [reportsRes, monthlyRes] = await Promise.all([
+          supabase
             .from("reports")
-            .select("*")
-            .order("created_at", { ascending: false });
-          if (fallbackData) setReports(fallbackData as ReportRecord[]);
-        } else if (data) {
-          setReports(data as ReportRecord[]);
+            .select("*, profiles(full_name)")
+            .order("created_at", { ascending: false }),
+          getMonthlyReportTrends(),
+        ]);
+
+        if (reportsRes.data) {
+          setReports(reportsRes.data as ReportRecord[]);
+        }
+        if (monthlyRes) {
+          setMonthlyTrends(monthlyRes);
         }
       } catch (err) {
         console.error("Failed to fetch dashboard data:", err);
@@ -109,13 +127,18 @@ export default function AdminDashboard() {
   };
 
   const filteredReports = reports.filter((r) => {
-    const query = searchQuery.toLowerCase();
-    const reporter = r.reporter_name || r.profiles?.full_name || "";
+    const query = searchQuery.trim().toLowerCase();
+    const reporter = (r.reporter_name || r.profiles?.full_name || "").toLowerCase();
+    const location = (r.location_name || "").toLowerCase();
+    const titleOrType = (r.waste_type || r.title || "").toLowerCase();
+    const id = (r.id || "").toLowerCase();
+
     const matchesQuery =
-      r.id.toLowerCase().includes(query) ||
-      (r.waste_type || r.title || "").toLowerCase().includes(query) ||
-      reporter.toLowerCase().includes(query) ||
-      (r.location_name || "").toLowerCase().includes(query);
+      !query ||
+      id.includes(query) ||
+      titleOrType.includes(query) ||
+      reporter.includes(query) ||
+      location.includes(query);
 
     if (!matchesQuery) return false;
 
@@ -136,8 +159,9 @@ export default function AdminDashboard() {
           Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
           Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
         };
-        const targetMonth = monthMap[selectedMonth] ?? 7;
+        const targetMonth = monthMap[selectedMonth];
         return (
+          targetMonth !== undefined &&
           reportDate.getMonth() === targetMonth &&
           reportDate.getFullYear() === Number(selectedYear)
         );
@@ -152,31 +176,27 @@ export default function AdminDashboard() {
       }
     }
 
-    if (activeView === "overview" && statusFilter !== "all") {
-      return r.status === statusFilter;
-    }
-
     return true;
   });
 
-  const monthlyCounts = [
-    { month: "Jan", count: 12 },
-    { month: "Feb", count: 18 },
-    { month: "Mar", count: 15 },
-    { month: "Apr", count: 22 },
-    { month: "May", count: 28 },
-    { month: "Jun", count: 35 },
-    { month: "Jul", count: 30 },
-    { month: "Aug", count: totalReports || 42 },
-    { month: "Sep", count: 15 },
-    { month: "Oct", count: 18 },
-    { month: "Nov", count: 10 },
-    { month: "Dec", count: 14 },
-  ];
-
-  const maxMonthly = Math.max(...monthlyCounts.map((m) => m.count));
+  const lineChartData = {
+    labels: monthlyTrends.map((m) => m.month),
+    datasets: [
+      {
+        label: "Reports",
+        data: monthlyTrends.map((m) => m.count),
+        borderColor: "#16a34a",
+        backgroundColor: "rgba(22, 163, 74, 0.15)",
+        fill: true,
+        tension: 0.4,
+        pointRadius: 4,
+        pointBackgroundColor: "#16a34a",
+      },
+    ],
+  };
 
   const getEmptyMessage = () => {
+    if (searchQuery) return "No reports matching your search query.";
     if (reportTimeframe === "today") return "No reports submitted today.";
     if (reportTimeframe === "monthly") return `No reports for ${selectedMonth} ${selectedYear} yet.`;
     if (reportTimeframe === "yearly") return `No reports recorded for ${selectedYear} yet.`;
@@ -201,6 +221,7 @@ export default function AdminDashboard() {
 
         <nav className="space-y-2 text-sm font-bold flex-1">
           <button
+            type="button"
             onClick={() => setActiveView("dashboard")}
             className={`w-full text-left px-4 py-3 rounded-xl transition-all ${
               activeView === "dashboard"
@@ -208,10 +229,11 @@ export default function AdminDashboard() {
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            Monitoring Dashboard
+            Dashboard
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveView("map")}
             className={`w-full text-left px-4 py-3 rounded-xl transition-all ${
               activeView === "map"
@@ -223,7 +245,8 @@ export default function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveView("reports")}
+            type="button"
+            onClick={() => navigate("/admin/reports")}
             className={`w-full text-left px-4 py-3 rounded-xl transition-all ${
               activeView === "reports"
                 ? "bg-emerald-800 text-white shadow-sm"
@@ -234,19 +257,17 @@ export default function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveView("overview")}
-            className={`w-full text-left px-4 py-3 rounded-xl transition-all ${
-              activeView === "overview"
-                ? "bg-emerald-800 text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
+            type="button"
+            onClick={() => navigate("/admin/users")}
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
           >
-            Reports Overview
+            People
           </button>
         </nav>
 
         <div className="pt-4 border-t border-slate-100">
           <button
+            type="button"
             onClick={handleLogout}
             className="w-full py-2.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 rounded-xl text-sm font-bold transition-all"
           >
@@ -256,11 +277,12 @@ export default function AdminDashboard() {
       </aside>
 
       <main className="flex-1 p-6 space-y-6 overflow-y-auto print:p-0 print:bg-white">
-        
         <div className="hidden print:block mb-6 border-b border-slate-300 pb-4 text-center">
-          <h1 className="text-2xl font-black text-indigo-900">BARANGAY TANKULAN ENVIRONMENTAL OFFICE</h1>
+          <h1 className="text-2xl font-black text-emerald-900">BARANGAY TANKULAN ENVIRONMENTAL OFFICE</h1>
           <p className="text-sm text-slate-700 font-bold">Official Waste Report</p>
-          <p className="text-xs text-slate-500 mt-1">Generated Date: {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Generated Date: {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+          </p>
         </div>
 
         {activeView === "dashboard" && (
@@ -271,7 +293,7 @@ export default function AdminDashboard() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search concern reports..."
-                className="w-full max-w-md px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm text-slate-800 shadow-sm"
+                className="w-full max-w-md px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
               />
             </header>
 
@@ -318,7 +340,7 @@ export default function AdminDashboard() {
                       radius={10}
                       pathOptions={{
                         color: "#ffffff",
-                        fillColor: r.status === "Ongoing" ? "#10b981" : "#f59e0b",
+                        fillColor: r.status === "Ongoing" || r.status === "On-going" ? "#10b981" : "#f59e0b",
                         fillOpacity: 0.9,
                         weight: 2,
                       }}
@@ -348,22 +370,16 @@ export default function AdminDashboard() {
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <h3 className="text-base font-extrabold text-slate-900">Monthly Concern Volume Trends</h3>
-              <div className="h-44 w-full flex items-end justify-between gap-2 pt-4 px-2">
-                {monthlyCounts.map((m) => {
-                  const heightPercent = maxMonthly > 0 ? (m.count / maxMonthly) * 100 : 10;
-                  return (
-                    <div key={m.month} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                      <span className="text-xs font-bold text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {m.count}
-                      </span>
-                      <div
-                        style={{ height: `${heightPercent}%` }}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 rounded-t-lg transition-all shadow-sm"
-                      />
-                      <span className="text-xs font-bold text-slate-700">{m.month}</span>
-                    </div>
-                  );
-                })}
+              <div className="h-64 w-full pt-2">
+                <Line
+                  data={lineChartData}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -380,12 +396,20 @@ export default function AdminDashboard() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search reports..."
+                  className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                />
+
                 <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold text-slate-700">
                   <button
                     type="button"
                     onClick={() => setReportTimeframe("today")}
                     className={`px-3.5 py-2 rounded-lg transition-all ${
-                      reportTimeframe === "today" ? "bg-indigo-800 text-white shadow-sm" : "hover:bg-slate-200"
+                      reportTimeframe === "today" ? "bg-emerald-800 text-white shadow-sm" : "hover:bg-slate-200"
                     }`}
                   >
                     Today
@@ -395,7 +419,7 @@ export default function AdminDashboard() {
                     type="button"
                     onClick={() => setReportTimeframe("monthly")}
                     className={`px-3.5 py-2 rounded-lg transition-all ${
-                      reportTimeframe === "monthly" ? "bg-indigo-800 text-white shadow-sm" : "hover:bg-slate-200"
+                      reportTimeframe === "monthly" ? "bg-emerald-800 text-white shadow-sm" : "hover:bg-slate-200"
                     }`}
                   >
                     Monthly Report
@@ -405,7 +429,7 @@ export default function AdminDashboard() {
                     type="button"
                     onClick={() => setReportTimeframe("yearly")}
                     className={`px-3.5 py-2 rounded-lg transition-all ${
-                      reportTimeframe === "yearly" ? "bg-indigo-800 text-white shadow-sm" : "hover:bg-slate-200"
+                      reportTimeframe === "yearly" ? "bg-emerald-800 text-white shadow-sm" : "hover:bg-slate-200"
                     }`}
                   >
                     Yearly Report
@@ -458,8 +482,14 @@ export default function AdminDashboard() {
             </div>
 
             <div className="text-center print:block hidden mb-4">
-              <h4 className="text-lg font-black text-indigo-900">
-                {reportTimeframe === "today" ? "Today's Concern Log Summary" : reportTimeframe === "monthly" ? `${selectedMonth} ${selectedYear} Monthly Waste Report` : reportTimeframe === "resolved" ? "Official Resolved Waste Reports Summary" : `${selectedYear} Yearly Waste Report`}
+              <h4 className="text-lg font-black text-emerald-900">
+                {reportTimeframe === "today" 
+                  ? "Today's Concern Log Summary" 
+                  : reportTimeframe === "monthly" 
+                  ? `${selectedMonth} ${selectedYear} Monthly Waste Report` 
+                  : reportTimeframe === "resolved" 
+                  ? "Official Resolved Waste Reports Summary" 
+                  : `${selectedYear} Yearly Waste Report`}
               </h4>
             </div>
 
@@ -472,30 +502,30 @@ export default function AdminDashboard() {
                 {getEmptyMessage()}
               </div>
             ) : (
-              <div className="overflow-x-auto border border-indigo-200 rounded-xl">
+              <div className="overflow-x-auto border border-emerald-200 rounded-xl">
                 <table className="w-full text-left text-xs sm:text-sm border-collapse">
                   <thead>
-                    <tr className="bg-indigo-800 text-white font-bold text-xs uppercase tracking-wide">
-                      <th className="py-3 px-4 border-r border-indigo-700 w-12 text-center">#</th>
-                      <th className="py-3 px-4 border-r border-indigo-700">Site Name / Location</th>
-                      <th className="py-3 px-4 border-r border-indigo-700">Reporter Resident</th>
-                      <th className="py-3 px-4 border-r border-indigo-700">Waste Category</th>
-                      <th className="py-3 px-4 border-r border-indigo-700 text-center">Status</th>
-                      <th className="py-3 px-4 border-r border-indigo-700">Time / Date</th>
+                    <tr className="bg-emerald-800 text-white font-bold text-xs uppercase tracking-wide">
+                      <th className="py-3 px-4 border-r border-emerald-700 w-12 text-center">#</th>
+                      <th className="py-3 px-4 border-r border-emerald-700">Site Name / Location</th>
+                      <th className="py-3 px-4 border-r border-emerald-700">Reporter Resident</th>
+                      <th className="py-3 px-4 border-r border-emerald-700">Waste Category</th>
+                      <th className="py-3 px-4 border-r border-emerald-700 text-center">Status</th>
+                      <th className="py-3 px-4 border-r border-emerald-700">Time / Date</th>
                       <th className="py-3 px-4 text-right print:hidden">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 bg-white">
                     {filteredReports.map((r, index) => {
-                      const reporterName = r.reporter_name || r.profiles?.full_name || "Sarah Alarkon";
+                      const reporterName = r.reporter_name || r.profiles?.full_name || "Anonymous Resident";
                       const formattedDate = new Date(r.created_at).toLocaleDateString("en-US", {
-                        month: "long",
+                        month: "short",
                         day: "numeric",
                         year: "numeric",
                       }) + " " + new Date(r.created_at).toLocaleTimeString("en-US", {
                         hour: "2-digit",
                         minute: "2-digit",
-                        hour12: false,
+                        hour12: true,
                       });
 
                       return (
@@ -510,7 +540,7 @@ export default function AdminDashboard() {
                             {reporterName}
                           </td>
                           <td className="py-3 px-4 border-r border-slate-200 font-semibold text-slate-800">
-                            {r.waste_type || r.title || "Illegal Dumping"}
+                            {r.waste_type || r.title || "Uncategorized"}
                           </td>
                           <td className="py-3 px-4 border-r border-slate-200 text-center">
                             <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getStatusBadgeClass(r.status)}`}>
@@ -524,7 +554,7 @@ export default function AdminDashboard() {
                             <button
                               type="button"
                               onClick={() => navigate(`/admin/report/${r.id}`)}
-                              className="px-3.5 py-1.5 bg-indigo-800 hover:bg-indigo-900 text-white rounded-lg text-xs font-bold transition-all shadow-sm"
+                              className="px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-bold transition-all shadow-sm"
                             >
                               View Details
                             </button>
@@ -541,124 +571,13 @@ export default function AdminDashboard() {
               <button
                 type="button"
                 onClick={handlePrintReport}
-                className="flex items-center gap-2 px-6 py-3 bg-indigo-800 hover:bg-indigo-900 text-white font-bold text-xs rounded-xl shadow-md transition-all"
+                className="flex items-center gap-2 px-6 py-3 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
               >
                 Print
               </button>
             </div>
           </div>
         )}
-
-        {activeView === "overview" && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <div>
-                <h3 className="text-xl font-black text-slate-900">Reports Overview</h3>
-                <p className="text-xs text-slate-500">Inspect full details, photos, and EXIF metadata for all resident reports</p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStatusFilter("all")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    statusFilter === "all" ? "bg-emerald-800 text-white shadow-sm" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
-                >
-                  All ({totalReports})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatusFilter("Pending")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    statusFilter === "Pending" ? "bg-amber-600 text-white shadow-sm" : "bg-amber-50 text-amber-800 hover:bg-amber-100"
-                  }`}
-                >
-                  Pending ({pendingCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatusFilter("Resolved")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    statusFilter === "Resolved" ? "bg-blue-600 text-white shadow-sm" : "bg-blue-50 text-blue-800 hover:bg-blue-100"
-                  }`}
-                >
-                  Resolved ({resolvedCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatusFilter("Rejected")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    statusFilter === "Rejected" ? "bg-rose-600 text-white shadow-sm" : "bg-rose-50 text-rose-800 hover:bg-rose-100"
-                  }`}
-                >
-                  Rejected ({rejectedCount})
-                </button>
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="py-12 text-center text-sm font-semibold text-slate-400">
-                Loading reports overview...
-              </div>
-            ) : filteredReports.length === 0 ? (
-              <div className="py-12 text-center text-sm font-semibold text-slate-400">
-                No resident concern reports found.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredReports.map((r) => {
-                  const reporterName = r.reporter_name || r.profiles?.full_name || "Sarah Alarkon";
-                  return (
-                    <div key={r.id} className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4 space-y-3 flex flex-col justify-between hover:shadow-md transition-all">
-                      <div className="space-y-2">
-                        {r.image_urls && r.image_urls.length > 0 ? (
-                          <div className="h-40 w-full overflow-hidden rounded-xl bg-slate-200 border border-slate-300">
-                            <img
-                              src={r.image_urls[0]}
-                              alt={r.title}
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div className="h-40 w-full rounded-xl bg-slate-200 flex items-center justify-center text-xs text-slate-400 font-semibold">
-                            No Photo Attached
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between pt-1">
-                          <span className="text-[11px] font-mono font-bold text-emerald-800">
-                            #{r.id.slice(0, 8)}
-                          </span>
-                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border ${getStatusBadgeClass(r.status)}`}>
-                            {r.status}
-                          </span>
-                        </div>
-
-                        <h4 className="font-extrabold text-slate-900 text-sm">{r.waste_type || r.title || "Illegal Dumping"}</h4>
-                        <p className="text-xs font-semibold text-slate-600">
-                          Reporter: <span className="text-slate-900 font-bold">{reporterName}</span>
-                        </p>
-                        <p className="text-xs text-slate-500 line-clamp-2">
-                          {r.location_name || "Barangay Tankulan, Manolo Fortich"}
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/admin/report/${r.id}`)}
-                        className="w-full py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
-                      >
-                        Inspect Full Report Details →
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
       </main>
     </div>
   );

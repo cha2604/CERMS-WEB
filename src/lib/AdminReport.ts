@@ -16,6 +16,7 @@ export interface AdminReportDetail {
   contact_number: string | null;
   exif_data: ExifData | null;
   admin_remarks: string | null;
+  formatted_address: string | null;
   created_at: string;
   updated_at: string;
   reporter_name: string;

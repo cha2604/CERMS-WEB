@@ -1,73 +1,62 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
-import ResidentLayout from "./Layout";
-import {
-  getResidentStats,
-  getResidentRecentReports,
-  type ReportRow,
-  type StatusCounts,
-} from "../../lib/DashboardQueries";
 
-export default function Dashboard() {
+interface ReportItem {
+  id: string;
+  title: string;
+  waste_type: string;
+  location_name?: string;
+  status: "Pending" | "Ongoing" | "On-going" | "Resolved" | "Rejected";
+  created_at: string;
+}
+
+export default function ResidentDashboard() {
   const navigate = useNavigate();
-  const [userName, setUserName] = useState<string>("User");
-  const [stats, setStats] = useState<StatusCounts>({
-    total: 0,
-    pending: 0,
-    ongoing: 0,
-    resolved: 0,
-    rejected: 0,
-  });
-  const [recentReports, setRecentReports] = useState<ReportRow[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [userName, setUserName] = useState<string>("Resident");
+  const [reports, setReports] = useState<ReportItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadDashboardData() {
+    async function loadData() {
       try {
         setLoading(true);
+        const { data: { user } } = await supabase.auth.getUser();
 
-        // 1. Get authenticated user
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", user.id)
+            .single();
 
-        if (!user) {
-          setLoading(false);
-          return;
+          if (profile?.full_name) setUserName(profile.full_name);
+
+          const { data: userReports } = await supabase
+            .from("reports")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false });
+
+          if (userReports) setReports(userReports as ReportItem[]);
         }
-
-        // 2. Fetch Profile Name
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        const name =
-          profile?.full_name ||
-          user.user_metadata?.full_name ||
-          user.email?.split("@")[0] ||
-          "User";
-        setUserName(name);
-
-        // 3. Fetch stats and recent 5 reports in parallel
-        const [userStats, recentData] = await Promise.all([
-          getResidentStats(user.id),
-          getResidentRecentReports(user.id, 5),
-        ]);
-
-        setStats(userStats);
-        setRecentReports(recentData);
       } catch (err) {
-        console.error("Error loading dashboard data:", err);
+        console.error("Error loading dashboard:", err);
       } finally {
         setLoading(false);
       }
     }
 
-    loadDashboardData();
+    loadData();
   }, []);
+
+  const totalCount = reports.length;
+  const pendingCount = reports.filter((r) => r.status === "Pending").length;
+  const ongoingCount = reports.filter((r) => r.status === "Ongoing" || r.status === "On-going").length;
+  const resolvedCount = reports.filter((r) => r.status === "Resolved").length;
+  const rejectedCount = reports.filter((r) => r.status === "Rejected").length;
+
+  const recentReports = reports.slice(0, 5);
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -75,9 +64,9 @@ export default function Dashboard() {
         return "bg-amber-100 text-amber-800 border-amber-300";
       case "Ongoing":
       case "On-going":
-        return "bg-blue-100 text-blue-800 border-blue-300";
-      case "Resolved":
         return "bg-emerald-100 text-emerald-800 border-emerald-300";
+      case "Resolved":
+        return "bg-blue-100 text-blue-800 border-blue-300";
       case "Rejected":
         return "bg-rose-100 text-rose-800 border-rose-300";
       default:
@@ -86,150 +75,84 @@ export default function Dashboard() {
   };
 
   return (
-    <ResidentLayout title="Dashboard">
-      <div className="p-4 space-y-4 max-w-4xl mx-auto">
-        {/* Header Greeting */}
-        <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-emerald-800 text-white flex items-center justify-center font-bold text-base shrink-0">
-              {userName.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <h2 className="font-extrabold text-slate-900 text-base flex items-center gap-1">
-                Hello, {userName}! 👋
-              </h2>
-              <p className="text-xs text-slate-400 font-medium">
-                Let's keep our barangay clean.
-              </p>
-            </div>
-          </div>
-          <button
-            className="p-2 rounded-full bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-all text-xs"
-            title="Notifications"
-          >
-            🔔
-          </button>
+    <div className="space-y-8 max-w-6xl mx-auto">
+      <div>
+        <h1 className="text-2xl font-black text-slate-900">
+          WELCOME {userName.toUpperCase()}!
+        </h1>
+        <p className="text-xs text-slate-500 font-semibold mt-0.5">
+          Barangay Tankulan Waste Monitoring Dashboard
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-center">
+          <p className="text-[11px] font-extrabold text-slate-400 uppercase">Total Reports</p>
+          <h3 className="text-3xl font-black text-slate-900 mt-1">{totalCount}</h3>
         </div>
 
-        {/* Total Reports */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200">
-          <span className="text-3xl font-black text-slate-900">{stats.total}</span>
-          <p className="text-xs font-bold text-slate-400 mt-0.5">Total Reports</p>
+        <div className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200 shadow-sm text-center">
+          <p className="text-[11px] font-extrabold text-amber-800 uppercase">Pending</p>
+          <h3 className="text-3xl font-black text-amber-900 mt-1">{pendingCount}</h3>
         </div>
 
-        {/* Status Grid */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200/60">
-            <span className="text-2xl font-black text-amber-800">{stats.pending}</span>
-            <p className="text-xs font-bold text-amber-700 mt-0.5">Pending</p>
-          </div>
-          <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200/60">
-            <span className="text-2xl font-black text-blue-800">{stats.ongoing}</span>
-            <p className="text-xs font-bold text-blue-700 mt-0.5">On-going</p>
-          </div>
-          <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200/60">
-            <span className="text-2xl font-black text-emerald-800">{stats.resolved}</span>
-            <p className="text-xs font-bold text-emerald-700 mt-0.5">Resolved</p>
-          </div>
-          <div className="bg-rose-50 p-4 rounded-2xl border border-rose-200/60">
-            <span className="text-2xl font-black text-rose-800">{stats.rejected}</span>
-            <p className="text-xs font-bold text-rose-700 mt-0.5">Rejected</p>
-          </div>
+        <div className="bg-emerald-50/60 p-5 rounded-2xl border border-emerald-200 shadow-sm text-center">
+          <p className="text-[11px] font-extrabold text-emerald-800 uppercase">On-going</p>
+          <h3 className="text-3xl font-black text-emerald-900 mt-1">{ongoingCount}</h3>
         </div>
 
-        {/* Quick Actions */}
-        <div className="space-y-1.5">
-          <p className="text-[11px] font-extrabold text-slate-400 tracking-wider uppercase">
-            Quick Actions
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => navigate("/report/new")}
-              className="py-3 px-4 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
-            >
-              <span>⊕</span> Submit Report
-            </button>
-            <button
-              onClick={() => navigate("/reports")}
-              className="py-3 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-emerald-900 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer"
-            >
-              <span>📋</span> My Reports
-            </button>
-          </div>
+        <div className="bg-blue-50/60 p-5 rounded-2xl border border-blue-200 shadow-sm text-center">
+          <p className="text-[11px] font-extrabold text-blue-800 uppercase">Resolved</p>
+          <h3 className="text-3xl font-black text-blue-900 mt-1">{resolvedCount}</h3>
         </div>
 
-        {/* Recent Updates */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] font-extrabold text-slate-400 tracking-wider uppercase">
-              Recent Updates
-            </p>
-            <button
-              onClick={() => navigate("/reports")}
-              className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
-            >
-              View All
-            </button>
-          </div>
-
-          {loading ? (
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center text-xs font-semibold text-slate-400">
-              Loading recent updates...
-            </div>
-          ) : recentReports.length === 0 ? (
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center text-xs font-medium text-slate-400">
-              No reports submitted yet.
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {recentReports.map((report) => (
-                <div
-                  key={report.id}
-                  onClick={() => navigate(`/report/${report.id}`)}
-                  className="bg-white p-3.5 rounded-2xl border border-slate-200 hover:border-emerald-500 transition-all cursor-pointer flex items-center justify-between gap-3 group"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-12 w-12 rounded-xl bg-slate-100 overflow-hidden border border-slate-200 shrink-0">
-                      {report.image_url || report.image_urls?.[0] ? (
-                        <img
-                          src={report.image_url || report.image_urls?.[0]}
-                          alt="Report thumbnail"
-                          className="h-full w-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-[9px] text-slate-400">
-                          No Photo
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0">
-                      <p className="text-xs font-extrabold text-slate-900 truncate group-hover:text-emerald-700 transition-colors">
-                        {report.category || report.title || "Waste Concern Report"}
-                      </p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        {new Date(report.created_at).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </p>
-                    </div>
-                  </div>
-
-                  <span
-                    className={`px-3 py-1 rounded-full text-[11px] font-bold border shrink-0 ${getStatusBadgeClass(
-                      report.status
-                    )}`}
-                  >
-                    {report.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="bg-rose-50/60 p-5 rounded-2xl border border-rose-200 shadow-sm text-center">
+          <p className="text-[11px] font-extrabold text-rose-800 uppercase">Rejected</p>
+          <h3 className="text-3xl font-black text-rose-900 mt-1">{rejectedCount}</h3>
         </div>
       </div>
-    </ResidentLayout>
+
+      <div className="flex justify-center pt-2">
+        <button
+          onClick={() => navigate("/report/new")}
+          className="w-full max-w-md py-4 bg-emerald-800 hover:bg-emerald-900 text-white font-black text-base rounded-2xl shadow-lg transition-all"
+        >
+          Submit Report
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+        <h2 className="text-lg font-black text-slate-900">Recent Reports</h2>
+
+        {loading ? (
+          <div className="py-8 text-center text-xs font-semibold text-slate-400">
+            Loading recent reports...
+          </div>
+        ) : recentReports.length === 0 ? (
+          <div className="py-8 text-center text-xs font-semibold text-slate-400">
+            No reports submitted yet. Click "Submit Report" to report a waste concern!
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {recentReports.map((r) => (
+              <div
+                key={r.id}
+                className="flex flex-wrap items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-all gap-4"
+              >
+                <div>
+                  <h4 className="font-extrabold text-sm text-slate-900">{r.waste_type || r.title}</h4>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    {r.location_name || "Barangay Tankulan, Manolo Fortich"} • {new Date(r.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusBadgeClass(r.status)}`}>
+                  {r.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

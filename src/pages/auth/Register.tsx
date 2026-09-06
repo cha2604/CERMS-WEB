@@ -1,24 +1,38 @@
-import { useState, type SetStateAction } from "react";
+import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Card from "../../components/common/Card";
 import Input from "../../components/common/Input";
 import PasswordInput from "../../components/common/Password";
 import Button from "../../components/common/Button";
 import {
-  FiArrowLeft,
   FiUser,
   FiMapPin,
   FiPhone,
   FiMail,
 } from "react-icons/fi";
-import { registerWithEmail } from "../../lib/authHelpers";
+import { registerWithEmail, loginWithGoogle } from "../../lib/authHelpers";
 import { supabase } from "../../lib/supabase";
+
+const PUROKS = [
+  "Purok 1 (Poblacion / Proper)",
+  "Purok 2a (52nd Engineer Brigade / Susohon)",
+  "Purok 2b (Binantalan)",
+  "Purok 3a (Lower Kalanawan)",
+  "Purok 3b (Upper Kalanawan)",
+  "Purok 4a (Kihare)",
+  "Purok 4b (Mulberry Subdivision)",
+  "Purok 5 (Pol-oton)",
+  "Purok 6a (Bliss)",
+  "Purok 6b (Mangima)",
+];
+
+const FIXED_ADDRESS_SUFFIX = "Barangay Tankulan, Manolo Fortich, Bukidnon";
 
 export default function Register() {
   const navigate = useNavigate();
 
   const [fullName, setFullName] = useState("");
-  const [address, setAddress] = useState("");
+  const [purok, setPurok] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,50 +40,36 @@ export default function Register() {
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
 
   async function handleRegister(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setErrorMessage("");
-    setSuccessMessage("");
 
     if (password !== confirmPassword) {
       setErrorMessage("Passwords do not match.");
       return;
     }
 
+    if (!purok) {
+      setErrorMessage("Please select your Purok.");
+      return;
+    }
+
+    const fullAddress = `${purok}, ${FIXED_ADDRESS_SUFFIX}`;
+
     setLoading(true);
 
     try {
-      const result = await registerWithEmail(fullName, email, password, address);
+      const result = await registerWithEmail(fullName, email, password, fullAddress);
 
-      if (contactNumber) {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (user) {
-          await supabase
-            .from("profiles")
-            .update({ contact_number: contactNumber })
-            .eq("id", user.id);
-        }
+      if (contactNumber && result.user) {
+        await supabase
+          .from("profiles")
+          .update({ contact_number: contactNumber })
+          .eq("id", result.user.id);
       }
 
-      if (result.session) {
-        navigate("/dashboard");
-        return;
-      }
-
-      setSuccessMessage(
-        "Account created! Please check your email to confirm your account."
-      );
-      setFullName("");
-      setAddress("");
-      setContactNumber("");
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
+      navigate("/dashboard");
     } catch (error) {
       console.error("Registration failed:", error);
       setErrorMessage(
@@ -85,14 +85,7 @@ export default function Register() {
   async function handleGoogleRegister() {
     setErrorMessage("");
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/dashboard`,
-        },
-      });
-
-      if (error) throw error;
+      await loginWithGoogle();
     } catch (error) {
       console.error("Google sign up failed:", error);
       setErrorMessage(
@@ -104,17 +97,7 @@ export default function Register() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-5">
       <Card>
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => navigate("/login")}
-            aria-label="Go back"
-            className="rounded-full p-2 text-green-700 transition hover:bg-green-50"
-          >
-            <FiArrowLeft size={20} />
-          </button>
-          <h1 className="text-lg font-bold text-green-800">CERMS</h1>
-          <span className="w-9" />
-        </div>
+        <h1 className="text-center text-lg font-bold text-green-800">CERMS</h1>
 
         <div className="mt-4 text-center">
           <h2 className="text-2xl font-bold text-slate-800">Create Account</h2>
@@ -130,23 +113,37 @@ export default function Register() {
             placeholder="Enter full name"
             icon={<FiUser size={16} />}
             value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFullName(e.target.value)}
             autoComplete="name"
             required
           />
 
           <div>
-            <Input
-              label="Address"
-              type="text"
-              placeholder="Enter your address"
-              icon={<FiMapPin size={16} />}
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              required
-            />
+            <label className="mb-2 block text-sm font-semibold text-slate-700">
+              Address
+            </label>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
+                <FiMapPin size={16} />
+              </span>
+              <select
+                value={purok}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setPurok(e.target.value)}
+                required
+                className="w-full appearance-none rounded-xl border border-slate-300 py-3 pl-11 pr-4 outline-none transition focus:border-green-700 focus:ring-4 focus:ring-green-200"
+              >
+                <option value="" disabled>
+                  Select your Purok
+                </option>
+                {PUROKS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
             <p className="mt-1 text-xs text-gray-400">
-              Must be within Barangay Tankulan, Manolo Fortich, Bukidnon.
+              {FIXED_ADDRESS_SUFFIX} will be added automatically.
             </p>
           </div>
 
@@ -156,7 +153,7 @@ export default function Register() {
             placeholder="09XXXXXXXXX"
             icon={<FiPhone size={16} />}
             value={contactNumber}
-            onChange={(e) => setContactNumber(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setContactNumber(e.target.value)}
           />
 
           <Input
@@ -165,7 +162,7 @@ export default function Register() {
             placeholder="Enter your email"
             icon={<FiMail size={16} />}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
             autoComplete="email"
             required
           />
@@ -174,7 +171,7 @@ export default function Register() {
             label="Password"
             placeholder="Enter your password"
             value={password}
-            onChange={(e: { target: { value: SetStateAction<string>; }; }) => setPassword(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
             autoComplete="new-password"
             minLength={6}
             required
@@ -184,7 +181,7 @@ export default function Register() {
             label="Confirm Password"
             placeholder="Confirm your password"
             value={confirmPassword}
-            onChange={(e: { target: { value: SetStateAction<string>; }; }) => setConfirmPassword(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
             autoComplete="new-password"
             minLength={6}
             required
@@ -208,7 +205,7 @@ export default function Register() {
             <svg width="18" height="18" viewBox="0 0 48 48">
               <path
                 fill="#FFC107"
-                d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.5-.4-3.5z"
+                d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 4 12.9 4 4 12.9 4 4 12.9 4 4 12.9 4 4z"
               />
               <path
                 fill="#FF3D00"
@@ -225,12 +222,6 @@ export default function Register() {
             </svg>
             Continue with Google
           </button>
-
-          {successMessage && (
-            <div className="rounded-xl bg-green-50 p-4 text-center text-sm text-green-800">
-              {successMessage}
-            </div>
-          )}
 
           {errorMessage && (
             <div className="rounded-xl bg-red-50 p-4 text-center text-sm text-red-700">
