@@ -34,12 +34,15 @@ export default function AdminReports() {
   const [reportTimeframe, setReportTimeframe] = useState<
     "today" | "monthly" | "yearly" | "resolved"
   >("monthly");
-  const [selectedMonth, setSelectedMonth] = useState(
-    new Date().toLocaleString("en-US", { month: "short" })
-  );
-  const [selectedYear, setSelectedYear] = useState(
-    new Date().getFullYear().toString()
-  );
+
+  const currentMonthStr = new Date().toLocaleString("en-US", {
+    month: "short",
+  });
+
+  const currentYearStr = new Date().getFullYear().toString();
+
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
+  const [selectedYear, setSelectedYear] = useState(currentYearStr);
 
   useEffect(() => {
     async function loadReports() {
@@ -80,20 +83,24 @@ export default function AdminReports() {
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case "Pending":
-        return "border-amber-200 bg-amber-50 text-amber-700";
+        return "bg-amber-100 text-amber-800 border-amber-300";
       case "Ongoing":
       case "On-going":
-        return "border-emerald-200 bg-emerald-50 text-emerald-700";
+        return "bg-emerald-100 text-emerald-800 border-emerald-300";
       case "Resolved":
-        return "border-blue-200 bg-blue-50 text-blue-700";
+        return "bg-blue-100 text-blue-800 border-blue-300";
       case "Rejected":
-        return "border-rose-200 bg-rose-50 text-rose-700";
+        return "bg-rose-100 text-rose-800 border-rose-300";
       default:
-        return "border-slate-200 bg-slate-50 text-slate-700";
+        return "bg-slate-100 text-slate-800 border-slate-300";
     }
   };
 
   const filteredOverviewReports = reports.filter((report) => {
+    if (report.status === "Resolved") {
+      return false;
+    }
+
     if (statusFilter === "All") {
       return true;
     }
@@ -130,14 +137,14 @@ export default function AdminReports() {
 
     const id = report.id.toLowerCase();
 
-    const matchesSearch =
+    const matchesQuery =
       !query ||
       id.includes(query) ||
       titleOrType.includes(query) ||
       reporter.includes(query) ||
       location.includes(query);
 
-    if (!matchesSearch) {
+    if (!matchesQuery) {
       return false;
     }
 
@@ -190,6 +197,7 @@ export default function AdminReports() {
   });
 
   const totalReports = reports.length;
+
   const pendingCount = reports.filter(
     (report) => report.status === "Pending"
   ).length;
@@ -208,30 +216,106 @@ export default function AdminReports() {
     (report) => report.status === "Rejected"
   ).length;
 
+  const getEmptyMessage = () => {
+    if (searchQuery) {
+      return "No reports matching your search query.";
+    }
+
+    if (reportTimeframe === "today") {
+      return "No reports submitted today.";
+    }
+
+    if (reportTimeframe === "monthly") {
+      return `No reports for ${selectedMonth} ${selectedYear} yet.`;
+    }
+
+    if (reportTimeframe === "yearly") {
+      return `No reports recorded for ${selectedYear} yet.`;
+    }
+
+    if (reportTimeframe === "resolved") {
+      return "No resolved reports found.";
+    }
+
+    return "No reports available.";
+  };
+
+  const getPrintPeriod = () => {
+    if (reportTimeframe === "today") {
+      return `Report Date: ${new Date().toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })}`;
+    }
+
+    if (reportTimeframe === "monthly") {
+      const monthMap: Record<string, number> = {
+        Jan: 0,
+        Feb: 1,
+        Mar: 2,
+        Apr: 3,
+        May: 4,
+        Jun: 5,
+        Jul: 6,
+        Aug: 7,
+        Sep: 8,
+        Oct: 9,
+        Nov: 10,
+        Dec: 11,
+      };
+
+      const targetMonth = monthMap[selectedMonth];
+
+      if (targetMonth !== undefined) {
+        return `Report Period: ${new Date(
+          Number(selectedYear),
+          targetMonth,
+          1
+        ).toLocaleDateString("en-US", {
+          month: "long",
+          year: "numeric",
+        })}`;
+      }
+    }
+
+    if (reportTimeframe === "yearly") {
+      return `Report Year: ${selectedYear}`;
+    }
+
+    return "Report Type: Resolved Reports";
+  };
+
+  const generatedDate = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white p-5 print:hidden">
-        <div className="mb-8 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-700 text-lg font-black text-white shadow-md">
+      <aside className="w-64 bg-white border-r border-slate-200 p-5 flex flex-col shrink-0 print:hidden">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="h-10 w-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-black text-lg shadow-md">
             C
           </div>
 
           <div>
-            <h2 className="text-base font-extrabold leading-none text-slate-900">
+            <h2 className="font-extrabold text-slate-900 text-base leading-none">
               CERMS
             </h2>
 
-            <p className="mt-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+            <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider mt-1">
               Waste Monitoring
             </p>
           </div>
         </div>
 
-        <nav className="flex-1 space-y-2 text-sm font-bold">
+        <nav className="space-y-2 text-sm font-bold flex-1">
           <button
             type="button"
             onClick={() => navigate("/admin/dashboard")}
-            className="w-full rounded-xl px-4 py-3 text-left text-slate-600 transition-all hover:bg-slate-100"
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
             Dashboard
           </button>
@@ -239,14 +323,14 @@ export default function AdminReports() {
           <button
             type="button"
             onClick={() => navigate("/admin/map")}
-            className="w-full rounded-xl px-4 py-3 text-left text-slate-600 transition-all hover:bg-slate-100"
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
             Geotagged Map
           </button>
 
           <button
             type="button"
-            className="w-full rounded-xl bg-emerald-800 px-4 py-3 text-left text-white shadow-sm"
+            className="w-full text-left px-4 py-3 rounded-xl bg-emerald-800 text-white shadow-sm"
           >
             Reports
           </button>
@@ -254,26 +338,26 @@ export default function AdminReports() {
           <button
             type="button"
             onClick={() => navigate("/admin/users")}
-            className="w-full rounded-xl px-4 py-3 text-left text-slate-600 transition-all hover:bg-slate-100"
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
             People
           </button>
         </nav>
 
-        <div className="border-t border-slate-100 pt-4">
+        <div className="pt-4 border-t border-slate-100">
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full rounded-xl bg-slate-100 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-rose-50 hover:text-rose-700"
+            className="w-full py-2.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 rounded-xl text-sm font-bold transition-all"
           >
             Log Out
           </button>
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto p-6">
-        <div className="mx-auto max-w-7xl space-y-6">
-          <header className="flex flex-wrap items-center justify-between gap-4">
+      <main className="flex-1 p-6 space-y-6 overflow-y-auto">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <header className="flex flex-wrap items-center justify-between gap-4 print:hidden">
             <div>
               <h1 className="text-2xl font-black text-slate-900">
                 Reports
@@ -289,6 +373,7 @@ export default function AdminReports() {
                 <p className="text-[11px] font-bold uppercase text-slate-400">
                   Total
                 </p>
+
                 <p className="text-lg font-black text-slate-900">
                   {totalReports}
                 </p>
@@ -298,6 +383,7 @@ export default function AdminReports() {
                 <p className="text-[11px] font-bold uppercase text-amber-600">
                   Pending
                 </p>
+
                 <p className="text-lg font-black text-amber-700">
                   {pendingCount}
                 </p>
@@ -307,6 +393,7 @@ export default function AdminReports() {
                 <p className="text-[11px] font-bold uppercase text-emerald-600">
                   Ongoing
                 </p>
+
                 <p className="text-lg font-black text-emerald-700">
                   {ongoingCount}
                 </p>
@@ -316,6 +403,7 @@ export default function AdminReports() {
                 <p className="text-[11px] font-bold uppercase text-blue-600">
                   Resolved
                 </p>
+
                 <p className="text-lg font-black text-blue-700">
                   {resolvedCount}
                 </p>
@@ -325,6 +413,7 @@ export default function AdminReports() {
                 <p className="text-[11px] font-bold uppercase text-rose-600">
                   Rejected
                 </p>
+
                 <p className="text-lg font-black text-rose-700">
                   {rejectedCount}
                 </p>
@@ -332,7 +421,7 @@ export default function AdminReports() {
             </div>
           </header>
 
-          <div className="flex gap-3 border-b border-slate-200">
+          <div className="flex gap-3 border-b border-slate-200 print:hidden">
             <button
               type="button"
               onClick={() => setMainView("Overview")}
@@ -485,7 +574,7 @@ export default function AdminReports() {
             </section>
           ) : (
             <section className="space-y-5">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm print:hidden">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <h2 className="text-lg font-black text-slate-900">
@@ -576,37 +665,66 @@ export default function AdminReports() {
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div
+                id="print-area"
+                className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+              >
+                <div className="print-header">
+                  <h1 className="text-xl font-black text-emerald-900">
+                    Official Waste Reports
+                  </h1>
+
+                  <p className="mt-1 text-sm font-semibold text-slate-700">
+                    Barangay Tankulan Waste Management & Monitoring
+                  </p>
+
+                  <p className="mt-1 text-xs font-semibold text-slate-600">
+                    {getPrintPeriod()}
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    Generated on: {generatedDate}
+                  </p>
+                </div>
+
                 {loading ? (
                   <div className="py-16 text-center text-sm font-semibold text-slate-400">
                     Loading official waste reports...
                   </div>
                 ) : filteredReports.length === 0 ? (
                   <div className="py-16 text-center text-sm font-semibold text-slate-400">
-                    No reports found.
+                    {getEmptyMessage()}
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[900px] text-left text-sm">
                       <thead>
                         <tr className="bg-emerald-800 text-xs uppercase tracking-wide text-white">
-                          <th className="px-4 py-4 text-center">#</th>
+                          <th className="px-4 py-4 text-center">
+                            #
+                          </th>
+
                           <th className="px-4 py-4">
                             Site Name / Location
                           </th>
+
                           <th className="px-4 py-4">
                             Reporter Resident
                           </th>
+
                           <th className="px-4 py-4">
                             Waste Category
                           </th>
+
                           <th className="px-4 py-4 text-center">
                             Status
                           </th>
+
                           <th className="px-4 py-4">
                             Time / Date
                           </th>
-                          <th className="px-4 py-4 text-center">
+
+                          <th className="px-4 py-4 text-center screen-only">
                             Action
                           </th>
                         </tr>
@@ -619,18 +737,18 @@ export default function AdminReports() {
                             report.profiles?.full_name ||
                             "Anonymous Resident";
 
+                          const createdDate = new Date(
+                            report.created_at
+                          );
+
                           const formattedDate =
-                            new Date(
-                              report.created_at
-                            ).toLocaleDateString("en-US", {
+                            createdDate.toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
                               year: "numeric",
                             }) +
                             " " +
-                            new Date(
-                              report.created_at
-                            ).toLocaleTimeString("en-US", {
+                            createdDate.toLocaleTimeString("en-US", {
                               hour: "2-digit",
                               minute: "2-digit",
                               hour12: true,
@@ -674,7 +792,7 @@ export default function AdminReports() {
                                 {formattedDate}
                               </td>
 
-                              <td className="px-4 py-4 text-center">
+                              <td className="px-4 py-4 text-center screen-only">
                                 <button
                                   type="button"
                                   onClick={() =>

@@ -4,7 +4,6 @@ import {
   FiMenu,
   FiX,
   FiHome,
-  FiSend,
   FiFileText,
   FiEdit3,
   FiClock,
@@ -15,10 +14,9 @@ import { supabase } from "../../lib/supabase";
 
 const NAV_ITEMS = [
   { label: "Dashboard", icon: FiHome, to: "/dashboard" },
-  { label: "Submit Report", icon: FiSend, to: "/report/new" },
   { label: "Reports", icon: FiFileText, to: "/my-reports" },
   { label: "Draft Reports", icon: FiEdit3, to: "/drafts" },
-  { label: "HISTORY", icon: FiClock, to: "/history" },
+  { label: "History", icon: FiClock, to: "/history" },
   { label: "Profile", icon: FiUser, to: "/profile" },
 ];
 
@@ -30,16 +28,23 @@ export default function ResidentLayout() {
 
   useEffect(() => {
     async function loadProfile() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       if (user) {
         const { data } = await supabase
           .from("profiles")
           .select("full_name")
           .eq("id", user.id)
           .single();
-        if (data?.full_name) setProfileName(data.full_name);
+
+        if (data?.full_name) {
+          setProfileName(data.full_name);
+        }
       }
     }
+
     loadProfile();
   }, []);
 
@@ -65,7 +70,10 @@ export default function ResidentLayout() {
             <div className="h-9 w-9 rounded-xl bg-emerald-800 text-white flex items-center justify-center font-black text-lg shadow-md">
               C
             </div>
-            <h1 className="font-extrabold text-slate-900 text-xl tracking-tight">CERMS</h1>
+
+            <h1 className="font-extrabold text-slate-900 text-xl tracking-tight">
+              CERMS
+            </h1>
           </div>
         </div>
       </header>
@@ -79,7 +87,9 @@ export default function ResidentLayout() {
 
       <aside
         className={`fixed top-0 left-0 bottom-0 w-72 bg-emerald-100/95 backdrop-blur-md border-r border-emerald-200 p-6 flex flex-col justify-between z-50 transform transition-transform duration-300 ease-in-out ${
-          isDrawerOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
+          isDrawerOpen
+            ? "translate-x-0 shadow-2xl"
+            : "-translate-x-full"
         }`}
       >
         <div className="space-y-6">
@@ -88,8 +98,12 @@ export default function ResidentLayout() {
               <div className="h-10 w-10 rounded-xl bg-emerald-800 text-white flex items-center justify-center font-black text-xl shadow-md">
                 C
               </div>
-              <h2 className="font-extrabold text-slate-900 text-xl tracking-tight">CERMS</h2>
+
+              <h2 className="font-extrabold text-slate-900 text-xl tracking-tight">
+                CERMS
+              </h2>
             </div>
+
             <button
               type="button"
               onClick={() => setIsDrawerOpen(false)}
@@ -102,7 +116,12 @@ export default function ResidentLayout() {
           <nav className="space-y-1.5 text-sm font-bold">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
-              const active = location.pathname === item.to;
+
+              const active =
+                location.pathname === item.to ||
+                (item.to === "/my-reports" &&
+                  location.pathname.startsWith("/report/"));
+
               return (
                 <Link
                   key={item.label}
@@ -123,6 +142,7 @@ export default function ResidentLayout() {
         </div>
 
         <button
+          type="button"
           onClick={handleLogout}
           className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-rose-100 hover:text-rose-700 transition-all border-t border-emerald-200/60"
         >

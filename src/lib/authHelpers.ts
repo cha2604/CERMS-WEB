@@ -1,24 +1,35 @@
 import { supabase } from "./supabase";
 
-export async function loginWithEmail(email: string, pass: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password: pass,
-  });
+export async function loginWithEmail(
+  email: string,
+  pass: string
+) {
+  const { data, error } =
+    await supabase.auth.signInWithPassword({
+      email,
+      password: pass,
+    });
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
+
   return data;
 }
 
 export async function loginWithGoogle() {
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: `${window.location.origin}/auth/callback`,
-    },
-  });
+  const { data, error } =
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/dashboard`,
+      },
+    });
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
+
   return data;
 }
 
@@ -28,27 +39,35 @@ export async function registerWithEmail(
   pass: string,
   fullAddress: string
 ) {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password: pass,
-    options: {
-      data: {
-        full_name: fullName,
-        address: fullAddress,
+  const { data, error } =
+    await supabase.auth.signUp({
+      email,
+      password: pass,
+      options: {
+        data: {
+          full_name: fullName,
+          address: fullAddress,
+        },
       },
-    },
-  });
+    });
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   if (data.user) {
-    await supabase.from("profiles").upsert({
-      id: data.user.id,
-      full_name: fullName,
-      email: email,
-      address: fullAddress,
-      role: "resident",
-    });
+    const { error: profileError } =
+      await supabase.from("profiles").upsert({
+        id: data.user.id,
+        full_name: fullName,
+        email,
+        address: fullAddress,
+        role: "resident",
+      });
+
+    if (profileError) {
+      throw profileError;
+    }
   }
 
   return data;
@@ -56,8 +75,16 @@ export async function registerWithEmail(
 
 export async function getAccountStatus() {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { role: "resident", suspended: false };
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return {
+        role: "resident",
+        suspended: false,
+      };
+    }
 
     const { data, error } = await supabase
       .from("profiles")
@@ -65,13 +92,26 @@ export async function getAccountStatus() {
       .eq("id", user.id)
       .single();
 
-    if (error || !data) return { role: "resident", suspended: false };
+    if (error || !data) {
+      return {
+        role: "resident",
+        suspended: false,
+      };
+    }
 
     return {
-      role: data.role === "admin" ? "admin" : "resident",
-      suspended: data.suspended || data.status === "suspended",
+      role:
+        data.role === "admin"
+          ? "admin"
+          : "resident",
+      suspended:
+        data.suspended ||
+        data.status === "suspended",
     };
-  } catch (err) {
-    return { role: "resident", suspended: false };
+  } catch {
+    return {
+      role: "resident",
+      suspended: false,
+    };
   }
 }

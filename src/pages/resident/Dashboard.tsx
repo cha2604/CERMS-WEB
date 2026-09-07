@@ -21,7 +21,10 @@ export default function ResidentDashboard() {
     async function loadData() {
       try {
         setLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
+
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
         if (user) {
           const { data: profile } = await supabase
@@ -30,7 +33,9 @@ export default function ResidentDashboard() {
             .eq("id", user.id)
             .single();
 
-          if (profile?.full_name) setUserName(profile.full_name);
+          if (profile?.full_name) {
+            setUserName(profile.full_name);
+          }
 
           const { data: userReports } = await supabase
             .from("reports")
@@ -38,7 +43,9 @@ export default function ResidentDashboard() {
             .eq("user_id", user.id)
             .order("created_at", { ascending: false });
 
-          if (userReports) setReports(userReports as ReportItem[]);
+          if (userReports) {
+            setReports(userReports as ReportItem[]);
+          }
         }
       } catch (err) {
         console.error("Error loading dashboard:", err);
@@ -51,10 +58,22 @@ export default function ResidentDashboard() {
   }, []);
 
   const totalCount = reports.length;
-  const pendingCount = reports.filter((r) => r.status === "Pending").length;
-  const ongoingCount = reports.filter((r) => r.status === "Ongoing" || r.status === "On-going").length;
-  const resolvedCount = reports.filter((r) => r.status === "Resolved").length;
-  const rejectedCount = reports.filter((r) => r.status === "Rejected").length;
+
+  const pendingCount = reports.filter(
+    (r) => r.status === "Pending"
+  ).length;
+
+  const ongoingCount = reports.filter(
+    (r) => r.status === "Ongoing" || r.status === "On-going"
+  ).length;
+
+  const resolvedCount = reports.filter(
+    (r) => r.status === "Resolved"
+  ).length;
+
+  const rejectedCount = reports.filter(
+    (r) => r.status === "Rejected"
+  ).length;
 
   const recentReports = reports.slice(0, 5);
 
@@ -62,13 +81,17 @@ export default function ResidentDashboard() {
     switch (status) {
       case "Pending":
         return "bg-amber-100 text-amber-800 border-amber-300";
+
       case "Ongoing":
       case "On-going":
         return "bg-emerald-100 text-emerald-800 border-emerald-300";
+
       case "Resolved":
         return "bg-blue-100 text-blue-800 border-blue-300";
+
       case "Rejected":
         return "bg-rose-100 text-rose-800 border-rose-300";
+
       default:
         return "bg-slate-100 text-slate-800 border-slate-300";
     }
@@ -80,6 +103,7 @@ export default function ResidentDashboard() {
         <h1 className="text-2xl font-black text-slate-900">
           WELCOME {userName.toUpperCase()}!
         </h1>
+
         <p className="text-xs text-slate-500 font-semibold mt-0.5">
           Barangay Tankulan Waste Monitoring Dashboard
         </p>
@@ -87,28 +111,53 @@ export default function ResidentDashboard() {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-center">
-          <p className="text-[11px] font-extrabold text-slate-400 uppercase">Total Reports</p>
-          <h3 className="text-3xl font-black text-slate-900 mt-1">{totalCount}</h3>
+          <p className="text-[11px] font-extrabold text-slate-400 uppercase">
+            Total Reports
+          </p>
+
+          <h3 className="text-3xl font-black text-slate-900 mt-1">
+            {totalCount}
+          </h3>
         </div>
 
         <div className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200 shadow-sm text-center">
-          <p className="text-[11px] font-extrabold text-amber-800 uppercase">Pending</p>
-          <h3 className="text-3xl font-black text-amber-900 mt-1">{pendingCount}</h3>
+          <p className="text-[11px] font-extrabold text-amber-800 uppercase">
+            Pending
+          </p>
+
+          <h3 className="text-3xl font-black text-amber-900 mt-1">
+            {pendingCount}
+          </h3>
         </div>
 
         <div className="bg-emerald-50/60 p-5 rounded-2xl border border-emerald-200 shadow-sm text-center">
-          <p className="text-[11px] font-extrabold text-emerald-800 uppercase">On-going</p>
-          <h3 className="text-3xl font-black text-emerald-900 mt-1">{ongoingCount}</h3>
+          <p className="text-[11px] font-extrabold text-emerald-800 uppercase">
+            On-going
+          </p>
+
+          <h3 className="text-3xl font-black text-emerald-900 mt-1">
+            {ongoingCount}
+          </h3>
         </div>
 
         <div className="bg-blue-50/60 p-5 rounded-2xl border border-blue-200 shadow-sm text-center">
-          <p className="text-[11px] font-extrabold text-blue-800 uppercase">Resolved</p>
-          <h3 className="text-3xl font-black text-blue-900 mt-1">{resolvedCount}</h3>
+          <p className="text-[11px] font-extrabold text-blue-800 uppercase">
+            Resolved
+          </p>
+
+          <h3 className="text-3xl font-black text-blue-900 mt-1">
+            {resolvedCount}
+          </h3>
         </div>
 
         <div className="bg-rose-50/60 p-5 rounded-2xl border border-rose-200 shadow-sm text-center">
-          <p className="text-[11px] font-extrabold text-rose-800 uppercase">Rejected</p>
-          <h3 className="text-3xl font-black text-rose-900 mt-1">{rejectedCount}</h3>
+          <p className="text-[11px] font-extrabold text-rose-800 uppercase">
+            Rejected
+          </p>
+
+          <h3 className="text-3xl font-black text-rose-900 mt-1">
+            {rejectedCount}
+          </h3>
         </div>
       </div>
 
@@ -122,7 +171,9 @@ export default function ResidentDashboard() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-        <h2 className="text-lg font-black text-slate-900">Recent Reports</h2>
+        <h2 className="text-lg font-black text-slate-900">
+          Recent Reports
+        </h2>
 
         {loading ? (
           <div className="py-8 text-center text-xs font-semibold text-slate-400">
@@ -130,7 +181,8 @@ export default function ResidentDashboard() {
           </div>
         ) : recentReports.length === 0 ? (
           <div className="py-8 text-center text-xs font-semibold text-slate-400">
-            No reports submitted yet. Click "Submit Report" to report a waste concern!
+            No reports submitted yet. Click "Submit Report" to report a waste
+            concern!
           </div>
         ) : (
           <div className="space-y-3">
@@ -140,12 +192,22 @@ export default function ResidentDashboard() {
                 className="flex flex-wrap items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-all gap-4"
               >
                 <div>
-                  <h4 className="font-extrabold text-sm text-slate-900">{r.waste_type || r.title}</h4>
+                  <h4 className="font-extrabold text-sm text-slate-900">
+                    {r.waste_type || r.title}
+                  </h4>
+
                   <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    {r.location_name || "Barangay Tankulan, Manolo Fortich"} • {new Date(r.created_at).toLocaleDateString()}
+                    {r.location_name ||
+                      "Barangay Tankulan, Manolo Fortich"}{" "}
+                    • {new Date(r.created_at).toLocaleDateString()}
                   </p>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusBadgeClass(r.status)}`}>
+
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusBadgeClass(
+                    r.status
+                  )}`}
+                >
                   {r.status}
                 </span>
               </div>
