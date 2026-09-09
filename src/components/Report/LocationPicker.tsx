@@ -11,7 +11,10 @@ import L from "leaflet";
 import { FiNavigation } from "react-icons/fi";
 import "leaflet/dist/leaflet.css";
 
-const TANKULAN_CENTER: [number, number] = [8.361106, 124.8647778];
+const TANKULAN_CENTER: [number, number] = [
+  8.361106,
+  124.8647778,
+];
 
 const redPinIcon = L.divIcon({
   className: "custom-pin",
@@ -61,116 +64,6 @@ export interface LocationPickerProps {
   ) => void;
 }
 
-interface ZoneBounds {
-  name: string;
-  minLat: number;
-  maxLat: number;
-  minLng: number;
-  maxLng: number;
-}
-
-const PUROK_ZONES: ZoneBounds[] = [
-  {
-    name: "Purok 1 (Poblacion / Proper)",
-    minLat: 8.3683,
-    maxLat: 8.3733,
-    minLng: 124.8551,
-    maxLng: 124.8626,
-  },
-  {
-    name: "Purok 2a (52nd Engineer Brigade / Susohon)",
-    minLat: 8.3683,
-    maxLat: 8.3733,
-    minLng: 124.8626,
-    maxLng: 124.8701,
-  },
-  {
-    name: "Purok 2b (Binantalan)",
-    minLat: 8.3683,
-    maxLat: 8.3733,
-    minLng: 124.8701,
-    maxLng: 124.8776,
-  },
-  {
-    name: "Purok 3a (Lower Kalanawan)",
-    minLat: 8.3633,
-    maxLat: 8.3683,
-    minLng: 124.8551,
-    maxLng: 124.8626,
-  },
-  {
-    name: "Purok 3b (Upper Kalanawan)",
-    minLat: 8.3633,
-    maxLat: 8.3683,
-    minLng: 124.8626,
-    maxLng: 124.8701,
-  },
-  {
-    name: "Purok 4a (Kihare)",
-    minLat: 8.3608,
-    maxLat: 8.3658,
-    minLng: 124.8551,
-    maxLng: 124.8626,
-  },
-  {
-    name: "Purok 4b (Mulberry Subdivision)",
-    minLat: 8.3608,
-    maxLat: 8.3658,
-    minLng: 124.8626,
-    maxLng: 124.8701,
-  },
-  {
-    name: "Purok 5 (Pol-oton)",
-    minLat: 8.3558,
-    maxLat: 8.3608,
-    minLng: 124.8626,
-    maxLng: 124.8701,
-  },
-  {
-    name: "Purok 6a (Bliss)",
-    minLat: 8.3558,
-    maxLat: 8.3683,
-    minLng: 124.8701,
-    maxLng: 124.8801,
-  },
-  {
-    name: "Purok 6b (Mangima)",
-    minLat: 8.3483,
-    maxLat: 8.3558,
-    minLng: 124.8626,
-    maxLng: 124.8801,
-  },
-];
-
-function getTankulanZone(
-  lat: number,
-  lng: number,
-  buildingName?: string
-): string {
-  const match = PUROK_ZONES.find(
-    (zone) =>
-      lat >= zone.minLat &&
-      lat <= zone.maxLat &&
-      lng >= zone.minLng &&
-      lng <= zone.maxLng
-  );
-
-  const zoneName = match
-    ? match.name
-    : "Barangay Tankulan (unmapped zone)";
-
-  if (
-    buildingName &&
-    buildingName.length > 2 &&
-    !buildingName.includes("Road") &&
-    !buildingName.includes("Highway")
-  ) {
-    return `${buildingName}, ${zoneName}, Barangay Tankulan, Manolo Fortich, Bukidnon`;
-  }
-
-  return `${zoneName}, Barangay Tankulan, Manolo Fortich, Bukidnon`;
-}
-
 function MapClickHandler({
   onSelect,
 }: {
@@ -188,17 +81,21 @@ function MapClickHandler({
 function RecenterOnChange({
   lat,
   lng,
+  enabled,
 }: {
   lat: number;
   lng: number;
+  enabled: boolean;
 }) {
   const map = useMap();
 
   useEffect(() => {
+    if (!enabled) return;
+
     map.flyTo([lat, lng], map.getZoom(), {
       duration: 0.6,
     });
-  }, [lat, lng, map]);
+  }, [lat, lng, map, enabled]);
 
   return null;
 }
@@ -227,31 +124,58 @@ export default function LocationPicker({
     "Barangay Tankulan, Manolo Fortich, Bukidnon"
   );
 
-  const [tileType, setTileType] = useState<"street" | "satellite">(
-    "street"
-  );
+  const [tileType, setTileType] = useState<
+    "street" | "satellite"
+  >("street");
 
   const [fetchingAddress, setFetchingAddress] =
     useState<boolean>(false);
 
-  const [locating, setLocating] = useState<boolean>(false);
+  const [locating, setLocating] =
+    useState<boolean>(false);
 
-  const [locationError, setLocationError] = useState<string>("");
+  const [locationError, setLocationError] =
+    useState<string>("");
+
+  const [isTracking, setIsTracking] =
+    useState<boolean>(true);
+
+  const [accuracy, setAccuracy] =
+    useState<number | null>(null);
 
   const markerRef = useRef<L.Marker>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const addressTimeoutRef =
+    useRef<number | null>(null);
+  const lastAddressCoordsRef = useRef<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
   const notifyLocationChange = (
     targetLat: number,
     targetLng: number,
     address: string
   ) => {
-    onLocationChange?.(targetLat, targetLng, address);
-    onLocationSelect?.(
-      { lat: targetLat, lng: targetLng },
+    onLocationChange?.(
+      targetLat,
+      targetLng,
       address
     );
+
+    onLocationSelect?.(
+      {
+        lat: targetLat,
+        lng: targetLng,
+      },
+      address
+    );
+
     onSelectLocation?.(
-      { lat: targetLat, lng: targetLng },
+      {
+        lat: targetLat,
+        lng: targetLng,
+      },
       address
     );
   };
@@ -264,7 +188,7 @@ export default function LocationPicker({
       setFetchingAddress(true);
 
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${targetLat}&lon=${targetLng}&zoom=18&addressdetails=1`,
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${targetLat}&lon=${targetLng}&zoom=19&addressdetails=1`,
         {
           headers: {
             Accept: "application/json",
@@ -273,40 +197,39 @@ export default function LocationPicker({
       );
 
       if (!response.ok) {
-        throw new Error("Failed to identify address.");
+        throw new Error(
+          "Failed to identify the selected location."
+        );
       }
 
       const data = await response.json();
 
-      const address = data?.address || {};
+      const formattedAddress =
+        data?.display_name ||
+        "Barangay Tankulan, Manolo Fortich, Bukidnon";
 
-      const place =
-        address.amenity ||
-        address.building ||
-        address.college ||
-        address.school ||
-        address.shop ||
-        address.tourism ||
-        "";
-
-      const formattedAddress = getTankulanZone(
-        targetLat,
-        targetLng,
-        place
+      setExactAddress(
+        formattedAddress
       );
-
-      setExactAddress(formattedAddress);
 
       notifyLocationChange(
         targetLat,
         targetLng,
         formattedAddress
       );
-    } catch {
-      const fallback = getTankulanZone(
-        targetLat,
-        targetLng
+
+      lastAddressCoordsRef.current = {
+        lat: targetLat,
+        lng: targetLng,
+      };
+    } catch (error) {
+      console.error(
+        "Reverse geocoding error:",
+        error
       );
+
+      const fallback =
+        "Barangay Tankulan, Manolo Fortich, Bukidnon";
 
       setExactAddress(fallback);
 
@@ -320,13 +243,165 @@ export default function LocationPicker({
     }
   };
 
+  const scheduleAddressUpdate = (
+    targetLat: number,
+    targetLng: number
+  ) => {
+    if (
+      lastAddressCoordsRef.current
+    ) {
+      const previous =
+        lastAddressCoordsRef.current;
+
+      const latDifference =
+        Math.abs(
+          targetLat - previous.lat
+        );
+
+      const lngDifference =
+        Math.abs(
+          targetLng - previous.lng
+        );
+
+      if (
+        latDifference < 0.00015 &&
+        lngDifference < 0.00015
+      ) {
+        return;
+      }
+    }
+
+    if (
+      addressTimeoutRef.current
+    ) {
+      window.clearTimeout(
+        addressTimeoutRef.current
+      );
+    }
+
+    addressTimeoutRef.current =
+      window.setTimeout(() => {
+        fetchRealAddress(
+          targetLat,
+          targetLng
+        );
+      }, 1200);
+  };
+
   const updateCoordinates = (
     newLat: number,
-    newLng: number
+    newLng: number,
+    shouldFollow = true,
+    shouldFetchAddress = true
   ) => {
     setLat(newLat);
     setLng(newLng);
-    fetchRealAddress(newLat, newLng);
+
+    if (shouldFetchAddress) {
+      scheduleAddressUpdate(
+        newLat,
+        newLng
+      );
+    }
+
+    if (shouldFollow) {
+      setIsTracking(true);
+    }
+  };
+
+  const stopTracking = () => {
+    if (
+      watchIdRef.current !== null
+    ) {
+      navigator.geolocation.clearWatch(
+        watchIdRef.current
+      );
+
+      watchIdRef.current = null;
+    }
+
+    setIsTracking(false);
+    setLocating(false);
+  };
+
+  const startTracking = () => {
+    if (!navigator.geolocation) {
+      setLocationError(
+        "Geolocation isn't supported by this browser."
+      );
+      return;
+    }
+
+    if (
+      watchIdRef.current !== null
+    ) {
+      return;
+    }
+
+    setIsTracking(true);
+    setLocating(true);
+    setLocationError("");
+
+    const watchId =
+      navigator.geolocation.watchPosition(
+        (position) => {
+          const currentLat =
+            position.coords.latitude;
+
+          const currentLng =
+            position.coords.longitude;
+
+          setLat(currentLat);
+          setLng(currentLng);
+
+          setAccuracy(
+            position.coords.accuracy
+          );
+
+          setLocating(false);
+
+          scheduleAddressUpdate(
+            currentLat,
+            currentLng
+          );
+        },
+        (error) => {
+          console.error(
+            "Live location error:",
+            error
+          );
+
+          setLocating(false);
+
+          if (
+            error.code ===
+            error.PERMISSION_DENIED
+          ) {
+            setLocationError(
+              "Location access was denied. Please allow location permission in your browser."
+            );
+          } else if (
+            error.code ===
+            error.TIMEOUT
+          ) {
+            setLocationError(
+              "Getting your live location timed out. Please try again."
+            );
+          } else {
+            setLocationError(
+              "Unable to track your live location."
+            );
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0,
+        }
+      );
+
+    watchIdRef.current =
+      watchId;
   };
 
   useEffect(() => {
@@ -336,127 +411,98 @@ export default function LocationPicker({
     ) {
       setLat(selectedLat);
       setLng(selectedLng);
-      fetchRealAddress(selectedLat, selectedLng);
-      return;
-    }
+      setIsTracking(false);
 
-    if (!navigator.geolocation) {
       fetchRealAddress(
-        TANKULAN_CENTER[0],
-        TANKULAN_CENTER[1]
+        selectedLat,
+        selectedLng
       );
-      return;
+
+      return () => {
+        if (
+          addressTimeoutRef.current
+        ) {
+          window.clearTimeout(
+            addressTimeoutRef.current
+          );
+        }
+      };
     }
 
-    setLocating(true);
-    setLocationError("");
+    startTracking();
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const currentLat = position.coords.latitude;
-        const currentLng = position.coords.longitude;
-
-        setLat(currentLat);
-        setLng(currentLng);
-
-        fetchRealAddress(currentLat, currentLng);
-
-        setLocating(false);
-      },
-      () => {
-        fetchRealAddress(
-          TANKULAN_CENTER[0],
-          TANKULAN_CENTER[1]
+    return () => {
+      if (
+        watchIdRef.current !== null
+      ) {
+        navigator.geolocation.clearWatch(
+          watchIdRef.current
         );
-        setLocating(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
+
+        watchIdRef.current = null;
       }
-    );
+
+      if (
+        addressTimeoutRef.current
+      ) {
+        window.clearTimeout(
+          addressTimeoutRef.current
+        );
+      }
+    };
   }, []);
 
   const handleMapClick = (
     newLat: number,
     newLng: number
   ) => {
-    updateCoordinates(newLat, newLng);
+    stopTracking();
+
+    updateCoordinates(
+      newLat,
+      newLng,
+      false,
+      true
+    );
   };
 
   const handleUseMyLocation = () => {
-    if (!navigator.geolocation) {
-      setLocationError(
-        "Geolocation isn't supported by this browser."
-      );
-      return;
-    }
-
-    setLocating(true);
-    setLocationError("");
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const currentLat = position.coords.latitude;
-        const currentLng = position.coords.longitude;
-
-        updateCoordinates(currentLat, currentLng);
-
-        setLocating(false);
-      },
-      (error) => {
-        console.error("Geolocation error:", error);
-
-        if (error.code === error.PERMISSION_DENIED) {
-          setLocationError(
-            "Location access was denied. Please allow location permission in your browser."
-          );
-        } else if (error.code === error.TIMEOUT) {
-          setLocationError(
-            "Getting your location timed out. Please try again."
-          );
-        } else {
-          setLocationError(
-            "Couldn't get your location. Please try again."
-          );
-        }
-
-        setLocating(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
-      }
-    );
+    startTracking();
   };
 
   const eventHandlers = useMemo(
     () => ({
       dragend() {
-        const marker = markerRef.current;
+        const marker =
+          markerRef.current;
 
-        if (marker) {
-          const markerPosition = marker.getLatLng();
+        if (!marker) return;
 
-          updateCoordinates(
-            markerPosition.lat,
-            markerPosition.lng
-          );
-        }
+        const markerPosition =
+          marker.getLatLng();
+
+        stopTracking();
+
+        updateCoordinates(
+          markerPosition.lat,
+          markerPosition.lng,
+          false,
+          true
+        );
       },
     }),
     []
   );
 
   return (
-    <div>
-      <div className="relative h-80 w-full overflow-hidden rounded-2xl border border-slate-300 shadow-inner">
-        <div className="absolute right-2 top-2 z-[1000] flex rounded-lg bg-white/95 p-0.5 shadow-md border border-slate-200 text-[11px] font-semibold">
+    <div className="relative z-0 isolate">
+      <div className="relative z-0 h-80 w-full overflow-hidden rounded-2xl border border-slate-300 shadow-inner">
+        <div className="absolute right-2 top-2 z-[500] flex rounded-lg bg-white/95 p-0.5 shadow-md border border-slate-200 text-[11px] font-semibold">
           <button
             type="button"
-            onClick={() => setTileType("street")}
+            onClick={() =>
+              setTileType("street")
+            }
             className={`rounded-md px-2 py-0.5 transition-all ${
               tileType === "street"
                 ? "bg-emerald-700 text-white shadow-sm"
@@ -468,7 +514,9 @@ export default function LocationPicker({
 
           <button
             type="button"
-            onClick={() => setTileType("satellite")}
+            onClick={() =>
+              setTileType("satellite")
+            }
             className={`rounded-md px-2 py-0.5 transition-all ${
               tileType === "satellite"
                 ? "bg-emerald-700 text-white shadow-sm"
@@ -481,20 +529,32 @@ export default function LocationPicker({
 
         <button
           type="button"
-          onClick={handleUseMyLocation}
+          onClick={
+            handleUseMyLocation
+          }
           disabled={locating}
-          className="absolute left-2 top-2 z-[1000] flex items-center gap-1.5 rounded-lg bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-800 shadow-md border border-slate-200 transition-all hover:bg-emerald-50 disabled:opacity-60"
+          className="absolute left-2 top-2 z-[500] flex items-center gap-1.5 rounded-lg bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-800 shadow-md border border-slate-200 transition-all hover:bg-emerald-50 disabled:opacity-60"
         >
           <FiNavigation size={12} />
-          {locating ? "Locating..." : "Use My Location"}
+
+          {locating
+            ? "Locating..."
+            : isTracking
+            ? "Tracking"
+            : "Track My Location"}
         </button>
 
         <MapContainer
           center={[lat, lng]}
-          zoom={17}
-          minZoom={12}
-          maxZoom={20}
-          style={{ height: "100%", width: "100%" }}
+          zoom={18}
+          minZoom={15}
+          maxZoom={21}
+          style={{
+            height: "100%",
+            width: "100%",
+            zIndex: 0,
+          }}
+          className="relative z-0"
         >
           {tileType === "street" ? (
             <TileLayer
@@ -508,16 +568,21 @@ export default function LocationPicker({
             />
           )}
 
-          <MapClickHandler onSelect={handleMapClick} />
+          <MapClickHandler
+            onSelect={handleMapClick}
+          />
 
           <RecenterOnChange
             lat={lat}
             lng={lng}
+            enabled={isTracking}
           />
 
           <Marker
-            draggable={true}
-            eventHandlers={eventHandlers}
+            draggable={!isTracking}
+            eventHandlers={
+              eventHandlers
+            }
             position={[lat, lng]}
             icon={redPinIcon}
             ref={markerRef}
@@ -535,17 +600,42 @@ export default function LocationPicker({
                 </p>
 
                 <p className="text-[10px] text-slate-500 font-mono border-t border-slate-100 pt-1">
-                  {lat.toFixed(6)}, {lng.toFixed(6)}
+                  {lat.toFixed(6)},{" "}
+                  {lng.toFixed(6)}
                 </p>
+
+                {accuracy !== null && (
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    GPS accuracy: ±
+                    {Math.round(
+                      accuracy
+                    )}{" "}
+                    m
+                  </p>
+                )}
+
+                {isTracking && (
+                  <p className="text-[10px] text-emerald-700 font-bold mt-1">
+                    Live location tracking active
+                  </p>
+                )}
               </div>
             </Popup>
           </Marker>
         </MapContainer>
 
-        <div className="absolute left-2 bottom-2 right-2 z-[1000] rounded-xl bg-white/90 p-2 shadow-lg border border-slate-200 flex flex-col gap-0.5">
-          <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">
-            Selected Location:
-          </span>
+        <div className="absolute left-2 bottom-2 right-2 z-[500] rounded-xl bg-white/90 p-2 shadow-lg border border-slate-200 flex flex-col gap-0.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">
+              Selected Location:
+            </span>
+
+            {isTracking && (
+              <span className="text-[9px] font-extrabold text-emerald-700">
+                LIVE
+              </span>
+            )}
+          </div>
 
           <h5 className="font-extrabold text-slate-900 text-[11px] leading-tight truncate">
             {fetchingAddress
@@ -554,8 +644,16 @@ export default function LocationPicker({
           </h5>
 
           <p className="text-[9px] text-slate-500 font-mono">
-            {lat.toFixed(6)}, {lng.toFixed(6)}
+            {lat.toFixed(6)},{" "}
+            {lng.toFixed(6)}
           </p>
+
+          {accuracy !== null && (
+            <p className="text-[9px] text-slate-400">
+              GPS accuracy: ±
+              {Math.round(accuracy)} m
+            </p>
+          )}
         </div>
       </div>
 

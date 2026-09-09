@@ -1,105 +1,148 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { FiArrowRight, FiCheckCircle, FiFileText } from "react-icons/fi";
 import { supabase } from "../../lib/supabase";
 
-interface ReportItem {
+interface ReportRecord {
   id: string;
   title: string;
   waste_type: string;
-  description: string;
-  location_name?: string;
-  image_urls?: string[];
-  status: string;
-  remarks?: string;
+  location_name?: string | null;
+  status: "Pending" | "Ongoing" | "On-going" | "Resolved" | "Rejected";
   created_at: string;
 }
 
 export default function History() {
-  const [resolvedReports, setResolvedReports] = useState<ReportItem[]>([]);
+  const [reports, setReports] = useState<ReportRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    async function fetchHistory() {
+    async function loadHistory() {
       try {
         setLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data } = await supabase
-            .from("reports")
-            .select("*")
-            .eq("user_id", user.id)
-            .eq("status", "Resolved")
-            .order("created_at", { ascending: false });
+        setErrorMessage("");
 
-          if (data) setResolvedReports(data as ReportItem[]);
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          setErrorMessage("Please log in to view your report history.");
+          return;
         }
-      } catch (err) {
-        console.error("Error loading history:", err);
+
+        const { data, error } = await supabase
+          .from("reports")
+          .select(
+            "id, title, waste_type, location_name, status, created_at"
+          )
+          .eq("user_id", user.id)
+          .eq("status", "Resolved")
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          throw error;
+        }
+
+        setReports((data as ReportRecord[]) || []);
+      } catch (error) {
+        console.error("Failed to fetch report history:", error);
+        setErrorMessage("Unable to load your report history.");
+        setReports([]);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchHistory();
+    loadHistory();
   }, []);
 
+  const getReportTitle = (report: ReportRecord) => {
+    return report.waste_type || report.title || "Waste Concern";
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      month: "numeric",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6">
       <div className="border-b border-slate-200 pb-4">
-        <h1 className="text-xl font-black text-slate-900">Resolved Reports History</h1>
-        <p className="text-xs text-slate-500 font-semibold">
-          Completed & Resolved Barangay Tankulan Waste Concerns Log
+        <h1 className="text-xl sm:text-2xl font-black text-slate-900">
+          Resolved Reports History
+        </h1>
+
+        <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-500">
+          Completed &amp; Resolved Barangay Tankulan Waste Concerns Log
         </p>
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-xs font-semibold text-slate-400">
-          Loading resolved history...
+        <div className="py-12 text-center">
+          <p className="text-sm font-semibold text-slate-400">
+            Loading report history...
+          </p>
         </div>
-      ) : resolvedReports.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-xs font-semibold text-slate-400 shadow-sm">
-          No resolved reports in your history yet.
+      ) : errorMessage ? (
+        <div className="py-8 text-center">
+          <p className="text-sm font-semibold text-rose-600">
+            {errorMessage}
+          </p>
+        </div>
+      ) : reports.length === 0 ? (
+        <div className="py-12 text-center">
+          <div className="mx-auto h-12 w-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
+            <FiFileText size={21} />
+          </div>
+
+          <p className="mt-3 text-sm font-extrabold text-slate-700">
+            No resolved reports
+          </p>
+
+          <p className="mt-1 text-xs font-semibold text-slate-400">
+            Your completed reports will appear here.
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {resolvedReports.map((r) => (
-            <div
-              key={r.id}
-              className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+        <div className="space-y-3">
+          {reports.map((report) => (
+            <Link
+              key={report.id}
+              to={`/report/${report.id}`}
+              className="block rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-emerald-300 hover:shadow-sm transition-all"
             >
-              <div className="space-y-2">
-                {r.image_urls && r.image_urls.length > 0 && (
-                  <div className="h-40 w-full overflow-hidden rounded-xl bg-slate-100 border border-slate-200">
-                    <img
-                      src={r.image_urls[0]}
-                      alt={r.title}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                )}
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-[10px] font-mono font-bold text-emerald-800">
-                    #{r.id.slice(0, 8)}
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-300">
-                    Resolved ✓
-                  </span>
-                </div>
-                <h3 className="font-extrabold text-sm text-slate-900">{r.waste_type || r.title}</h3>
-                <p className="text-xs font-semibold text-emerald-800">
-                  {r.location_name || "Barangay Tankulan, Manolo Fortich"}
-                </p>
-                {r.remarks && (
-                  <div className="p-2.5 bg-blue-50/70 rounded-xl border border-blue-200 text-xs text-blue-950 font-medium">
-                    <span className="font-bold block text-[10px] text-blue-800 uppercase">Barangay Official Remarks:</span>
-                    {r.remarks}
-                  </div>
-                )}
-              </div>
+              <div className="flex items-center justify-between gap-4 p-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-black text-slate-900 truncate">
+                    {getReportTitle(report)}
+                  </p>
 
-              <p className="text-[11px] font-mono text-slate-400 pt-2 border-t border-slate-100">
-                Resolved On: {new Date(r.created_at).toLocaleDateString()}
-              </p>
-            </div>
+                  <p className="mt-1 text-xs font-semibold text-slate-600 truncate">
+                    {report.location_name ||
+                      "Barangay Tankulan, Manolo Fortich, Bukidnon"}{" "}
+                    <span className="text-slate-400">•</span>{" "}
+                    {formatDate(report.created_at)}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="px-3 py-1.5 rounded-full text-[11px] font-extrabold border bg-blue-100 text-blue-800 border-blue-300 flex items-center gap-1.5">
+                    <FiCheckCircle size={13} />
+                    Resolved
+                  </span>
+
+                  <FiArrowRight
+                    size={17}
+                    className="text-slate-400"
+                  />
+                </div>
+              </div>
+            </Link>
           ))}
         </div>
       )}

@@ -12,7 +12,6 @@ import MapView from "../pages/resident/Mapview";
 import DraftReports from "../pages/resident/DraftReport";
 import History from "../pages/resident/History";
 import Profile from "../pages/resident/Profile";
-
 import AdminDashboard from "../pages/admin/Dashboard";
 import AdminReports from "../pages/admin/Reports";
 import AdminReportDetails from "../pages/admin/ReportDetails";

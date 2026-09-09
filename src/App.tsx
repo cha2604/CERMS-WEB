@@ -29,13 +29,19 @@ export default function AppRouter() {
 
       <Route element={<ResidentLayout />}>
         <Route path="/dashboard" element={<ResidentDashboard />} />
+
+        <Route path="/report" element={<SubmitReport />} />
         <Route path="/report/new" element={<SubmitReport />} />
+
         <Route path="/my-reports" element={<MyReport />} />
         <Route path="/reports" element={<MyReport />} />
+
         <Route path="/drafts" element={<DraftReport />} />
         <Route path="/history" element={<History />} />
         <Route path="/profile" element={<Profile />} />
+
         <Route path="/report/:id" element={<ReportDetails />} />
+
         <Route path="/map" element={<MapView />} />
       </Route>
 
@@ -43,10 +49,12 @@ export default function AppRouter() {
       <Route path="/admin/reports" element={<AdminReports />} />
       <Route path="/admin/map" element={<AdminMap />} />
       <Route path="/admin/users" element={<Users />} />
+
       <Route
         path="/admin/report/:id"
         element={<AdminReportDetails />}
       />
+
       <Route
         path="/admin/reports/:id"
         element={<AdminReportDetails />}
