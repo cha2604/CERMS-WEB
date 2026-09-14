@@ -9,31 +9,18 @@ interface UserProfile {
   created_at: string;
 }
 
-interface ArchivedProfile {
-  id: string;
-  full_name: string | null;
-  role: string | null;
-  created_at: string;
-  archived_at: string;
-}
-
-type ActiveTab = "people" | "archive";
-
 export default function Users() {
   const navigate = useNavigate();
 
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [archivedUsers, setArchivedUsers] = useState<
-    ArchivedProfile[]
-  >([]);
+  const [users, setUsers] = useState<UserProfile[]>(
+    []
+  );
 
-  const [loading, setLoading] = useState(true);
-  const [archiveLoading, setArchiveLoading] =
+  const [loading, setLoading] =
     useState(true);
 
-  const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] =
-    useState<ActiveTab>("people");
+  const [search, setSearch] =
+    useState("");
 
   const [selectedUser, setSelectedUser] =
     useState<UserProfile | null>(null);
@@ -45,27 +32,21 @@ export default function Users() {
     useState(false);
 
   useEffect(() => {
-    loadData();
+    fetchUsers();
   }, []);
-
-  async function loadData() {
-    await Promise.all([
-      fetchUsers(),
-      fetchArchivedUsers(),
-    ]);
-  }
 
   async function fetchUsers() {
     try {
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .neq("role", "admin")
-        .order("created_at", {
-          ascending: false,
-        });
+      const { data, error } =
+        await supabase
+          .from("profiles")
+          .select("*")
+          .neq("role", "admin")
+          .order("created_at", {
+            ascending: false,
+          });
 
       if (error) {
         throw error;
@@ -74,10 +55,12 @@ export default function Users() {
       const activeProfiles =
         (data as UserProfile[]) || [];
 
-      const { data: archivedData, error: archivedError } =
-        await supabase
-          .from("archived_profiles")
-          .select("id");
+      const {
+        data: archivedData,
+        error: archivedError,
+      } = await supabase
+        .from("archived_profiles")
+        .select("id");
 
       if (archivedError) {
         throw archivedError;
@@ -106,42 +89,12 @@ export default function Users() {
     }
   }
 
-  async function fetchArchivedUsers() {
-    try {
-      setArchiveLoading(true);
-
-      const { data, error } =
-        await supabase
-          .from("archived_profiles")
-          .select("*")
-          .order("archived_at", {
-            ascending: false,
-          });
-
-      if (error) {
-        throw error;
-      }
-
-      setArchivedUsers(
-        (data as ArchivedProfile[]) || []
-      );
-    } catch (err) {
-      console.error(
-        "Error fetching archived users:",
-        err
-      );
-    } finally {
-      setArchiveLoading(false);
-    }
-  }
-
   const handleDeleteUser = async (
     user: UserProfile
   ) => {
     const confirmed = window.confirm(
       `Are you sure you want to delete ${
-        user.full_name ||
-        "this resident"
+        user.full_name || "this resident"
       }? The account will be moved to Archive.`
     );
 
@@ -155,11 +108,9 @@ export default function Users() {
           .from("archived_profiles")
           .upsert({
             id: user.id,
-            full_name:
-              user.full_name,
+            full_name: user.full_name,
             role: user.role,
-            created_at:
-              user.created_at,
+            created_at: user.created_at,
             archived_at:
               new Date().toISOString(),
           });
@@ -170,17 +121,13 @@ export default function Users() {
 
       setUsers((prev) =>
         prev.filter(
-          (item) =>
-            item.id !== user.id
+          (item) => item.id !== user.id
         )
       );
 
-      await fetchArchivedUsers();
-
       alert(
         `${
-          user.full_name ||
-          "Resident"
+          user.full_name || "Resident"
         } has been moved to Archive.`
       );
     } catch (err) {
@@ -195,104 +142,56 @@ export default function Users() {
     }
   };
 
-  const handleRestoreUser = async (
-    user: ArchivedProfile
-  ) => {
-    const confirmed = window.confirm(
-      `Restore ${
-        user.full_name ||
-        "this resident"
-      } to Manage People?`
-    );
-
-    if (!confirmed) {
+  const handleSendViolation = async () => {
+    if (
+      !selectedUser ||
+      !violationReason.trim()
+    ) {
       return;
     }
 
     try {
       const { error } =
         await supabase
-          .from("archived_profiles")
-          .delete()
-          .eq("id", user.id);
+          .from("notifications")
+          .insert([
+            {
+              user_id: selectedUser.id,
+              title:
+                "Warning: Violation Issued",
+              message:
+                violationReason,
+              type: "violation",
+              created_at:
+                new Date().toISOString(),
+            },
+          ]);
 
       if (error) {
         throw error;
       }
 
-      await fetchUsers();
-      await fetchArchivedUsers();
-
       alert(
-        `${
-          user.full_name ||
-          "Resident"
-        } has been restored.`
+        `Violation sent to ${
+          selectedUser.full_name ||
+          "resident"
+        }.`
       );
+
+      setIsModalOpen(false);
+      setViolationReason("");
+      setSelectedUser(null);
     } catch (err) {
       console.error(
-        "Error restoring user:",
+        "Error sending violation:",
         err
       );
 
       alert(
-        "Failed to restore resident."
+        "Failed to send violation notification."
       );
     }
   };
-
-  const handleSendViolation =
-    async () => {
-      if (
-        !selectedUser ||
-        !violationReason.trim()
-      ) {
-        return;
-      }
-
-      try {
-        const { error } =
-          await supabase
-            .from("notifications")
-            .insert([
-              {
-                user_id:
-                  selectedUser.id,
-                title:
-                  "Warning: Violation Issued",
-                message:
-                  violationReason,
-                type: "violation",
-                created_at:
-                  new Date().toISOString(),
-              },
-            ]);
-
-        if (error) {
-          throw error;
-        }
-
-        alert(
-          `Violation sent to ${
-            selectedUser.full_name ||
-            "resident"
-          }.`
-        );
-
-        setIsModalOpen(false);
-        setViolationReason("");
-        setSelectedUser(null);
-      } catch (err) {
-        console.error(
-          "Error sending violation:",
-          err
-        );
-
-        alert(
-          "Failed to send violation notification."
-        );
-      }
-    };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -306,27 +205,8 @@ export default function Users() {
         .toLowerCase();
 
       const name =
-        user.full_name?.toLowerCase() ||
-        "";
-
-      const id =
-        user.id.toLowerCase();
-
-      return (
-        name.includes(query) ||
-        id.includes(query)
-      );
-    });
-
-  const filteredArchivedUsers =
-    archivedUsers.filter((user) => {
-      const query = search
-        .trim()
-        .toLowerCase();
-
-      const name =
-        user.full_name?.toLowerCase() ||
-        "";
+        user.full_name
+          ?.toLowerCase() || "";
 
       const id =
         user.id.toLowerCase();
@@ -360,9 +240,7 @@ export default function Users() {
           <button
             type="button"
             onClick={() =>
-              navigate(
-                "/admin/dashboard"
-              )
+              navigate("/dashboard")
             }
             className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
           >
@@ -372,9 +250,7 @@ export default function Users() {
           <button
             type="button"
             onClick={() =>
-              navigate(
-                "/admin/dashboard"
-              )
+              navigate("/map")
             }
             className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
           >
@@ -384,9 +260,7 @@ export default function Users() {
           <button
             type="button"
             onClick={() =>
-              navigate(
-                "/admin/dashboard"
-              )
+              navigate("/reports")
             }
             className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
           >
@@ -398,6 +272,26 @@ export default function Users() {
             className="w-full text-left px-4 py-3 rounded-xl bg-emerald-800 text-white shadow-sm transition-all cursor-pointer"
           >
             People
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              navigate("/approval")
+            }
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+          >
+            Approval
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              navigate("/archive")
+            }
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+          >
+            Archive
           </button>
         </nav>
 
@@ -416,45 +310,12 @@ export default function Users() {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5 border-b border-slate-200">
             <div>
-              <div className="flex items-center gap-6">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setActiveTab(
-                      "people"
-                    )
-                  }
-                  className={`text-xl font-black transition-all ${
-                    activeTab === "people"
-                      ? "text-slate-900"
-                      : "text-slate-400 hover:text-slate-700"
-                  }`}
-                >
-                  Manage People
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setActiveTab(
-                      "archive"
-                    )
-                  }
-                  className={`text-xl font-black transition-all ${
-                    activeTab === "archive"
-                      ? "text-emerald-800"
-                      : "text-slate-400 hover:text-slate-700"
-                  }`}
-                >
-                  Archive
-                </button>
-              </div>
+              <h1 className="text-xl font-black text-slate-900">
+                Manage People
+              </h1>
 
               <p className="text-xs text-slate-500 mt-1">
-                {activeTab ===
-                "people"
-                  ? "Overview of registered residents"
-                  : "Archived resident accounts"}
+                Overview of registered residents
               </p>
             </div>
 
@@ -466,229 +327,117 @@ export default function Users() {
                   e.target.value
                 )
               }
-              placeholder={
-                activeTab === "people"
-                  ? "Search residents..."
-                  : "Search archived residents..."
-              }
+              placeholder="Search residents..."
               className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-600"
             />
           </div>
 
-          {activeTab ===
-            "people" && (
-            <div className="p-6">
-              {loading ? (
-                <div className="py-12 text-center text-sm font-semibold text-slate-400">
-                  Loading registered residents...
-                </div>
-              ) : filteredUsers.length ===
-                0 ? (
-                <div className="py-12 text-center text-sm font-semibold text-slate-400">
-                  No registered residents found.
-                </div>
-              ) : (
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-xs sm:text-sm border-collapse">
-                    <thead>
-                      <tr className="bg-slate-100 font-bold text-slate-700 border-b border-slate-200">
-                        <th className="py-3 px-4">
-                          Full Name
-                        </th>
+          <div className="p-6">
+            {loading ? (
+              <div className="py-12 text-center text-sm font-semibold text-slate-400">
+                Loading registered residents...
+              </div>
+            ) : filteredUsers.length ===
+              0 ? (
+              <div className="py-12 text-center text-sm font-semibold text-slate-400">
+                No registered residents found.
+              </div>
+            ) : (
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-xs sm:text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 font-bold text-slate-700 border-b border-slate-200">
+                      <th className="py-3 px-4">
+                        Full Name
+                      </th>
 
-                        <th className="py-3 px-4">
-                          User ID
-                        </th>
+                      <th className="py-3 px-4">
+                        User ID
+                      </th>
 
-                        <th className="py-3 px-4">
-                          Role
-                        </th>
+                      <th className="py-3 px-4">
+                        Role
+                      </th>
 
-                        <th className="py-3 px-4">
-                          Registered Date
-                        </th>
+                      <th className="py-3 px-4">
+                        Registered Date
+                      </th>
 
-                        <th className="py-3 px-4 text-right">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
+                      <th className="py-3 px-4 text-right">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
 
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredUsers.map(
-                        (user) => (
-                          <tr
-                            key={user.id}
-                            className="hover:bg-slate-50"
-                          >
-                            <td className="py-3 px-4 font-bold text-slate-900">
-                              {user.full_name ||
-                                "Unnamed Resident"}
-                            </td>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredUsers.map(
+                      (user) => (
+                        <tr
+                          key={user.id}
+                          className="hover:bg-slate-50"
+                        >
+                          <td className="py-3 px-4 font-bold text-slate-900">
+                            {user.full_name ||
+                              "Unnamed Resident"}
+                          </td>
 
-                            <td className="py-3 px-4 font-mono text-slate-500">
-                              {user.id.slice(
-                                0,
-                                8
-                              )}
-                              ...
-                            </td>
+                          <td className="py-3 px-4 font-mono text-slate-500">
+                            {user.id.slice(
+                              0,
+                              8
+                            )}
+                            ...
+                          </td>
 
-                            <td className="py-3 px-4">
-                              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-                                {user.role ||
-                                  "resident"}
-                              </span>
-                            </td>
+                          <td className="py-3 px-4">
+                            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                              {user.role ||
+                                "resident"}
+                            </span>
+                          </td>
 
-                            <td className="py-3 px-4 text-slate-500">
-                              {new Date(
-                                user.created_at
-                              ).toLocaleDateString()}
-                            </td>
+                          <td className="py-3 px-4 text-slate-500">
+                            {new Date(
+                              user.created_at
+                            ).toLocaleDateString()}
+                          </td>
 
-                            <td className="py-3 px-4 text-right space-x-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedUser(
-                                    user
-                                  );
-                                  setIsModalOpen(
-                                    true
-                                  );
-                                }}
-                                className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
-                              >
-                                Send Violation
-                              </button>
+                          <td className="py-3 px-4 text-right space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedUser(
+                                  user
+                                );
+                                setIsModalOpen(
+                                  true
+                                );
+                              }}
+                              className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+                            >
+                              Send Violation
+                            </button>
 
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleDeleteUser(
-                                    user
-                                  )
-                                }
-                                className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        )
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab ===
-            "archive" && (
-            <div className="p-6">
-              {archiveLoading ? (
-                <div className="py-12 text-center text-sm font-semibold text-slate-400">
-                  Loading archived residents...
-                </div>
-              ) : filteredArchivedUsers.length ===
-                0 ? (
-                <div className="py-12 text-center text-sm font-semibold text-slate-400">
-                  No archived residents found.
-                </div>
-              ) : (
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-xs sm:text-sm border-collapse">
-                    <thead>
-                      <tr className="bg-slate-100 font-bold text-slate-700 border-b border-slate-200">
-                        <th className="py-3 px-4">
-                          Full Name
-                        </th>
-
-                        <th className="py-3 px-4">
-                          User ID
-                        </th>
-
-                        <th className="py-3 px-4">
-                          Role
-                        </th>
-
-                        <th className="py-3 px-4">
-                          Registered Date
-                        </th>
-
-                        <th className="py-3 px-4">
-                          Archived Date
-                        </th>
-
-                        <th className="py-3 px-4 text-right">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredArchivedUsers.map(
-                        (user) => (
-                          <tr
-                            key={user.id}
-                            className="hover:bg-slate-50"
-                          >
-                            <td className="py-3 px-4 font-bold text-slate-900">
-                              {user.full_name ||
-                                "Unnamed Resident"}
-                            </td>
-
-                            <td className="py-3 px-4 font-mono text-slate-500">
-                              {user.id.slice(
-                                0,
-                                8
-                              )}
-                              ...
-                            </td>
-
-                            <td className="py-3 px-4">
-                              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700">
-                                {user.role ||
-                                  "resident"}
-                              </span>
-                            </td>
-
-                            <td className="py-3 px-4 text-slate-500">
-                              {new Date(
-                                user.created_at
-                              ).toLocaleDateString()}
-                            </td>
-
-                            <td className="py-3 px-4 text-slate-500">
-                              {new Date(
-                                user.archived_at
-                              ).toLocaleDateString()}
-                            </td>
-
-                            <td className="py-3 px-4 text-right">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleRestoreUser(
-                                    user
-                                  )
-                                }
-                                className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
-                              >
-                                Restore
-                              </button>
-                            </td>
-                          </tr>
-                        )
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleDeleteUser(
+                                  user
+                                )
+                              }
+                              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </main>
 
@@ -701,8 +450,7 @@ export default function Users() {
               </h3>
 
               <p className="text-xs text-slate-500">
-                Sending official warning notice
-                to{" "}
+                Sending official warning notice to{" "}
                 <span className="font-bold text-slate-800">
                   {selectedUser.full_name ||
                     "Resident"}
@@ -711,9 +459,7 @@ export default function Users() {
               </p>
 
               <textarea
-                value={
-                  violationReason
-                }
+                value={violationReason}
                 onChange={(e) =>
                   setViolationReason(
                     e.target.value
@@ -727,15 +473,9 @@ export default function Users() {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsModalOpen(
-                      false
-                    );
-                    setViolationReason(
-                      ""
-                    );
-                    setSelectedUser(
-                      null
-                    );
+                    setIsModalOpen(false);
+                    setViolationReason("");
+                    setSelectedUser(null);
                   }}
                   className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
                 >

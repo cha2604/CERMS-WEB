@@ -10,7 +10,10 @@ import {
   FiPhone,
   FiMail,
 } from "react-icons/fi";
-import { registerWithEmail, loginWithGoogle } from "../../lib/authHelpers";
+import {
+  registerWithEmail,
+  loginWithGoogle,
+} from "../../lib/authHelpers";
 import { supabase } from "../../lib/supabase";
 
 const PUROKS = [
@@ -26,7 +29,8 @@ const PUROKS = [
   "Purok 6b (Mangima)",
 ];
 
-const FIXED_ADDRESS_SUFFIX = "Barangay Tankulan, Manolo Fortich, Bukidnon";
+const FIXED_ADDRESS_SUFFIX =
+  "Barangay Tankulan, Manolo Fortich, Bukidnon";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -36,22 +40,32 @@ export default function Register() {
   const [contactNumber, setContactNumber] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] =
+    useState("");
 
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [googleLoading, setGoogleLoading] =
+    useState(false);
+  const [errorMessage, setErrorMessage] =
+    useState("");
 
-  async function handleRegister(e: React.FormEvent<HTMLFormElement>) {
+  async function handleRegister(
+    e: React.FormEvent<HTMLFormElement>
+  ) {
     e.preventDefault();
     setErrorMessage("");
 
     if (password !== confirmPassword) {
-      setErrorMessage("Passwords do not match.");
+      setErrorMessage(
+        "Passwords do not match."
+      );
       return;
     }
 
     if (!purok) {
-      setErrorMessage("Please select your Purok.");
+      setErrorMessage(
+        "Please select your Purok."
+      );
       return;
     }
 
@@ -60,18 +74,37 @@ export default function Register() {
     setLoading(true);
 
     try {
-      const result = await registerWithEmail(fullName, email, password, fullAddress);
+      const result = await registerWithEmail(
+        fullName,
+        email,
+        password,
+        fullAddress
+      );
 
       if (contactNumber && result.user) {
-        await supabase
+        const { error } = await supabase
           .from("profiles")
-          .update({ contact_number: contactNumber })
+          .update({
+            contact_number: contactNumber,
+          })
           .eq("id", result.user.id);
+
+        if (error) {
+          throw error;
+        }
       }
 
-      navigate("/dashboard");
+      await supabase.auth.signOut();
+
+      navigate("/login?registered=1", {
+        replace: true,
+      });
     } catch (error) {
-      console.error("Registration failed:", error);
+      console.error(
+        "Registration failed:",
+        error
+      );
+
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -83,37 +116,57 @@ export default function Register() {
   }
 
   async function handleGoogleRegister() {
+    setGoogleLoading(true);
     setErrorMessage("");
+
     try {
       await loginWithGoogle();
     } catch (error) {
-      console.error("Google sign up failed:", error);
-      setErrorMessage(
-        error instanceof Error ? error.message : "Google sign up failed."
+      console.error(
+        "Google sign up failed:",
+        error
       );
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Google sign up failed."
+      );
+
+      setGoogleLoading(false);
     }
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-5">
       <Card>
-        <h1 className="text-center text-lg font-bold text-green-800">CERMS</h1>
+        <h1 className="text-center text-lg font-bold text-green-800">
+          CERMS
+        </h1>
 
         <div className="mt-4 text-center">
-          <h2 className="text-2xl font-bold text-slate-800">Create Account</h2>
+          <h2 className="text-2xl font-bold text-slate-800">
+            Create Account
+          </h2>
+
           <p className="mt-1 text-sm text-gray-500">
-            Fill in the information below
+            Register as a Barangay Tankulan resident
           </p>
         </div>
 
-        <form onSubmit={handleRegister} className="mt-6 space-y-5">
+        <form
+          onSubmit={handleRegister}
+          className="mt-6 space-y-5"
+        >
           <Input
             label="Full Name"
             type="text"
             placeholder="Enter full name"
             icon={<FiUser size={16} />}
             value={fullName}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFullName(e.target.value)}
+            onChange={(
+              e: React.ChangeEvent<HTMLInputElement>
+            ) => setFullName(e.target.value)}
             autoComplete="name"
             required
           />
@@ -122,26 +175,38 @@ export default function Register() {
             <label className="mb-2 block text-sm font-semibold text-slate-700">
               Address
             </label>
+
             <div className="relative">
               <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
                 <FiMapPin size={16} />
               </span>
+
               <select
                 value={purok}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setPurok(e.target.value)}
+                onChange={(
+                  e: React.ChangeEvent<HTMLSelectElement>
+                ) => setPurok(e.target.value)}
                 required
                 className="w-full appearance-none rounded-xl border border-slate-300 py-3 pl-11 pr-4 outline-none transition focus:border-green-700 focus:ring-4 focus:ring-green-200"
               >
-                <option value="" disabled>
+                <option
+                  value=""
+                  disabled
+                >
                   Select your Purok
                 </option>
+
                 {PUROKS.map((p) => (
-                  <option key={p} value={p}>
+                  <option
+                    key={p}
+                    value={p}
+                  >
                     {p}
                   </option>
                 ))}
               </select>
             </div>
+
             <p className="mt-1 text-xs text-gray-400">
               {FIXED_ADDRESS_SUFFIX} will be added automatically.
             </p>
@@ -153,7 +218,9 @@ export default function Register() {
             placeholder="09XXXXXXXXX"
             icon={<FiPhone size={16} />}
             value={contactNumber}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setContactNumber(e.target.value)}
+            onChange={(
+              e: React.ChangeEvent<HTMLInputElement>
+            ) => setContactNumber(e.target.value)}
           />
 
           <Input
@@ -162,7 +229,9 @@ export default function Register() {
             placeholder="Enter your email"
             icon={<FiMail size={16} />}
             value={email}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+            onChange={(
+              e: React.ChangeEvent<HTMLInputElement>
+            ) => setEmail(e.target.value)}
             autoComplete="email"
             required
           />
@@ -171,7 +240,9 @@ export default function Register() {
             label="Password"
             placeholder="Enter your password"
             value={password}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+            onChange={(
+              e: React.ChangeEvent<HTMLInputElement>
+            ) => setPassword(e.target.value)}
             autoComplete="new-password"
             minLength={6}
             required
@@ -181,31 +252,45 @@ export default function Register() {
             label="Confirm Password"
             placeholder="Confirm your password"
             value={confirmPassword}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
+            onChange={(
+              e: React.ChangeEvent<HTMLInputElement>
+            ) => setConfirmPassword(e.target.value)}
             autoComplete="new-password"
             minLength={6}
             required
           />
 
-          <Button type="submit" disabled={loading}>
-            {loading ? "Creating account..." : "Register"}
+          <Button
+            type="submit"
+            disabled={loading}
+          >
+            {loading
+              ? "Creating account..."
+              : "Register"}
           </Button>
 
           <div className="flex items-center gap-3 py-1">
             <div className="h-px flex-1 bg-slate-200" />
-            <span className="text-xs font-medium text-gray-400">OR</span>
+            <span className="text-xs font-medium text-gray-400">
+              OR
+            </span>
             <div className="h-px flex-1 bg-slate-200" />
           </div>
 
           <button
             type="button"
             onClick={handleGoogleRegister}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            disabled={googleLoading}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <svg width="18" height="18" viewBox="0 0 48 48">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 48 48"
+            >
               <path
                 fill="#FFC107"
-                d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 4 12.9 4 4 12.9 4 4 12.9 4 4 12.9 4 4z"
+                d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-8 20-20 0-1.3-.1-2.4-.4-3.5z"
               />
               <path
                 fill="#FF3D00"
@@ -220,7 +305,10 @@ export default function Register() {
                 d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.3-4.1 5.7l6.6 5.6C41.5 36.5 44 30.7 44 24c0-1.3-.1-2.5-.4-3.5z"
               />
             </svg>
-            Continue with Google
+
+            {googleLoading
+              ? "Connecting..."
+              : "Continue with Google"}
           </button>
 
           {errorMessage && (
@@ -231,7 +319,10 @@ export default function Register() {
 
           <p className="text-center text-sm text-gray-500">
             Already have an account?{" "}
-            <Link to="/login" className="font-semibold text-green-700 hover:underline">
+            <Link
+              to="/login"
+              className="font-semibold text-green-700 hover:underline"
+            >
               Login
             </Link>
           </p>

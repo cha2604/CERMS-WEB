@@ -4,7 +4,10 @@ export async function loginWithEmail(
   email: string,
   pass: string
 ) {
-  const { data, error } =
+  const {
+    data,
+    error,
+  } =
     await supabase.auth.signInWithPassword({
       email,
       password: pass,
@@ -18,11 +21,15 @@ export async function loginWithEmail(
 }
 
 export async function loginWithGoogle() {
-  const { data, error } =
+  const {
+    data,
+    error,
+  } =
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/dashboard`,
+        redirectTo:
+          `${window.location.origin}/login`,
       },
     });
 
@@ -39,7 +46,10 @@ export async function registerWithEmail(
   pass: string,
   fullAddress: string
 ) {
-  const { data, error } =
+  const {
+    data,
+    error,
+  } =
     await supabase.auth.signUp({
       email,
       password: pass,
@@ -56,17 +66,40 @@ export async function registerWithEmail(
   }
 
   if (data.user) {
-    const { error: profileError } =
-      await supabase.from("profiles").upsert({
-        id: data.user.id,
-        full_name: fullName,
-        email,
-        address: fullAddress,
-        role: "resident",
-      });
+    const {
+      error: profileError,
+    } =
+      await supabase
+        .from("profiles")
+        .upsert({
+          id: data.user.id,
+          full_name: fullName,
+          email,
+          address: fullAddress,
+          role: "resident",
+        });
 
     if (profileError) {
       throw profileError;
+    }
+
+    const {
+      error: approvalError,
+    } =
+      await supabase
+        .from("resident_approvals")
+        .upsert(
+          {
+            user_id: data.user.id,
+            status: "pending",
+          },
+          {
+            onConflict: "user_id",
+          }
+        );
+
+    if (approvalError) {
+      throw approvalError;
     }
   }
 
@@ -74,44 +107,70 @@ export async function registerWithEmail(
 }
 
 export async function getAccountStatus() {
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-    if (!user) {
-      return {
-        role: "resident",
-        suspended: false,
-      };
-    }
+  if (userError) {
+    throw userError;
+  }
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("role, status, suspended")
-      .eq("id", user.id)
-      .single();
-
-    if (error || !data) {
-      return {
-        role: "resident",
-        suspended: false,
-      };
-    }
-
+  if (!user) {
     return {
-      role:
-        data.role === "admin"
-          ? "admin"
-          : "resident",
-      suspended:
-        data.suspended ||
-        data.status === "suspended",
-    };
-  } catch {
-    return {
-      role: "resident",
-      suspended: false,
+      userId: null,
+      role: null,
+      approvalStatus: null,
     };
   }
+
+  const {
+    data: profile,
+    error: profileError,
+  } =
+    await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+  if (profileError) {
+    throw profileError;
+  }
+
+  const role =
+    profile?.role === "admin"
+      ? "admin"
+      : "resident";
+
+  if (role === "admin") {
+    return {
+      userId: user.id,
+      role: "admin",
+      approvalStatus:
+        "approved",
+    };
+  }
+
+  const {
+    data: approval,
+    error: approvalError,
+  } =
+    await supabase
+      .from("resident_approvals")
+      .select("status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+  if (approvalError) {
+    throw approvalError;
+  }
+
+  return {
+    userId: user.id,
+    role: "resident",
+    approvalStatus:
+      approval?.status ??
+      "pending",
+  };
 }

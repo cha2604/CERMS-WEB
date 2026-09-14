@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import Card from "../../components/common/Card";
 import Input from "../../components/common/Input";
 import PasswordInput from "../../components/common/Password";
 import Button from "../../components/common/Button";
-import { FiUser } from "react-icons/fi";
+import { FiMail } from "react-icons/fi";
 import {
   loginWithEmail,
   loginWithGoogle,
@@ -14,60 +18,120 @@ import { supabase } from "../../lib/supabase";
 
 export default function Login() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams] =
+    useSearchParams();
 
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [loading, setLoading] =
+    useState(false);
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
+  const [googleLoading, setGoogleLoading] =
+    useState(false);
+
+  const [errorMessage, setErrorMessage] =
+    useState("");
+
+  const [successMessage, setSuccessMessage] =
+    useState("");
+
+  const [email, setEmail] =
+    useState("");
+
+  const [password, setPassword] =
+    useState("");
+
+  const [rememberMe, setRememberMe] =
+    useState(false);
 
   useEffect(() => {
-    if (searchParams.get("suspended") === "1") {
-      setErrorMessage(
-        "Your account has been suspended due to repeated policy violations. Please contact the barangay office for assistance."
+    if (
+      searchParams.get("registered") ===
+      "1"
+    ) {
+      setSuccessMessage(
+        "Your account has been created and is now waiting for barangay admin approval."
       );
     }
   }, [searchParams]);
 
   async function redirectByRole() {
-    const status = await getAccountStatus();
+    const status =
+      await getAccountStatus();
 
-    if (status.suspended) {
+    if (status.role === "admin") {
       await supabase.auth.signOut();
 
       setErrorMessage(
-        "Your account has been suspended due to repeated policy violations. Please contact the barangay office for assistance."
+        "Admin accounts cannot log in through the resident portal."
       );
 
       return;
     }
 
-    if (status.role === "admin") {
-      navigate("/admin/dashboard", {
-        replace: true,
-      });
-    } else {
-      navigate("/dashboard", {
-        replace: true,
-      });
+    if (
+      status.approvalStatus ===
+      "pending"
+    ) {
+      navigate(
+        "/approval-pending",
+        {
+          replace: true,
+        }
+      );
+
+      return;
     }
+
+    if (
+      status.approvalStatus ===
+      "rejected"
+    ) {
+      navigate(
+        "/approval-rejected",
+        {
+          replace: true,
+        }
+      );
+
+      return;
+    }
+
+    if (
+      status.approvalStatus !==
+      "approved"
+    ) {
+      setErrorMessage(
+        "Your account approval could not be verified. Please try again later."
+      );
+
+      return;
+    }
+
+    navigate("/dashboard", {
+      replace: true,
+    });
   }
 
   async function handleEmailLogin(
     e: React.FormEvent<HTMLFormElement>
   ) {
     e.preventDefault();
+
     setLoading(true);
     setErrorMessage("");
+    setSuccessMessage("");
 
     try {
-      await loginWithEmail(email, password);
+      await loginWithEmail(
+        email,
+        password
+      );
+
       await redirectByRole();
     } catch (error) {
-      console.error("Login failed:", error);
+      console.error(
+        "Login failed:",
+        error
+      );
 
       setErrorMessage(
         error instanceof Error
@@ -82,6 +146,7 @@ export default function Login() {
   async function handleGoogleLogin() {
     setGoogleLoading(true);
     setErrorMessage("");
+    setSuccessMessage("");
 
     try {
       await loginWithGoogle();
@@ -114,23 +179,29 @@ export default function Login() {
           </h2>
 
           <p className="mt-1 text-sm text-gray-500">
-            Login to your account
+            Login to your resident account
           </p>
         </div>
 
         <form
-          onSubmit={handleEmailLogin}
+          onSubmit={
+            handleEmailLogin
+          }
           className="mt-6 space-y-5"
         >
           <Input
             label="Email"
             type="email"
             placeholder="Enter your email"
-            icon={<FiUser size={16} />}
+            icon={
+              <FiMail size={16} />
+            }
             value={email}
-            onChange={(
-              e: React.ChangeEvent<HTMLInputElement>
-            ) => setEmail(e.target.value)}
+            onChange={(e) =>
+              setEmail(
+                e.target.value
+              )
+            }
             autoComplete="email"
             required
           />
@@ -139,22 +210,24 @@ export default function Login() {
             label="Password"
             placeholder="Enter your password"
             value={password}
-            onChange={(
-              e: React.ChangeEvent<HTMLInputElement>
-            ) => setPassword(e.target.value)}
+            onChange={(e) =>
+              setPassword(
+                e.target.value
+              )
+            }
             autoComplete="current-password"
             required
           />
 
-          <div className="flex items-center justify-between text-sm">
-            <label className="flex items-center gap-2 text-slate-600">
+          <div className="flex items-center justify-between gap-3">
+            <label className="flex items-center gap-2 text-sm text-slate-600">
               <input
                 type="checkbox"
                 checked={rememberMe}
-                onChange={(
-                  e: React.ChangeEvent<HTMLInputElement>
-                ) =>
-                  setRememberMe(e.target.checked)
+                onChange={(e) =>
+                  setRememberMe(
+                    e.target.checked
+                  )
                 }
                 className="h-4 w-4 rounded border-slate-300 text-green-700 focus:ring-green-500"
               />
@@ -162,32 +235,21 @@ export default function Login() {
               Remember me
             </label>
 
-            <Link
-              to="/forgot-password"
-              className="text-green-700 hover:underline"
-            >
-              Forgot password?
-            </Link>
+            <span className="text-xs text-slate-400">
+              {rememberMe
+                ? "Session saved"
+                : "Session only"}
+            </span>
           </div>
 
           <Button
             type="submit"
-            disabled={loading || googleLoading}
+            disabled={loading}
           >
             {loading
               ? "Logging in..."
               : "Login"}
           </Button>
-
-          <p className="text-center text-sm text-gray-500">
-            Don't have an account?{" "}
-            <Link
-              to="/register"
-              className="font-semibold text-green-700 hover:underline"
-            >
-              Register here
-            </Link>
-          </p>
 
           <div className="flex items-center gap-3 py-1">
             <div className="h-px flex-1 bg-slate-200" />
@@ -201,8 +263,12 @@ export default function Login() {
 
           <button
             type="button"
-            onClick={handleGoogleLogin}
-            disabled={loading || googleLoading}
+            onClick={
+              handleGoogleLogin
+            }
+            disabled={
+              googleLoading
+            }
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <svg
@@ -212,7 +278,7 @@ export default function Login() {
             >
               <path
                 fill="#FFC107"
-                d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.5-.4-3.5z"
+                d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-8 20-20 0-1.3-.1-2.5-.4-3.5z"
               />
 
               <path
@@ -235,13 +301,29 @@ export default function Login() {
               ? "Connecting..."
               : "Continue with Google"}
           </button>
-        </form>
 
-        {errorMessage && (
-          <div className="mt-5 rounded-xl bg-red-50 p-4 text-center text-sm text-red-700">
-            {errorMessage}
-          </div>
-        )}
+          {successMessage && (
+            <div className="rounded-xl bg-green-50 p-4 text-center text-sm text-green-700">
+              {successMessage}
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="rounded-xl bg-red-50 p-4 text-center text-sm text-red-700">
+              {errorMessage}
+            </div>
+          )}
+
+          <p className="text-center text-sm text-gray-500">
+            Don't have an account?{" "}
+            <Link
+              to="/register"
+              className="font-semibold text-green-700 hover:underline"
+            >
+              Register
+            </Link>
+          </p>
+        </form>
       </Card>
     </div>
   );
