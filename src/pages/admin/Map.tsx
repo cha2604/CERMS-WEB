@@ -6,30 +6,30 @@ import {
   CircleMarker,
   Popup,
 } from "react-leaflet";
-import { supabase } from "../../lib/supabase";
-import {
-  getZoneBreakdown,
-  type ZoneWithCount,
-} from "../../lib/ZoneQueries";
-import "leaflet/dist/leaflet.css";
 import {
   Filter,
   Layers,
   MapPin,
   ExternalLink,
 } from "lucide-react";
+import { supabase } from "../../lib/supabase";
+import {
+  getAreaBreakdown,
+  type AreaWithCount,
+} from "../../lib/ZoneQueries";
+import "leaflet/dist/leaflet.css";
 
-const DEFAULT_CENTER: [number, number] = [
-  8.360839,
-  124.867628,
-];
+const DEFAULT_CENTER: [
+  number,
+  number
+] = [8.360839, 124.867628];
 
 const TANKULAN_BOUNDS: [
   [number, number],
   [number, number]
 ] = [
-  [8.35, 124.852],
-  [8.372, 124.88],
+  [8.3500, 124.8520],
+  [8.3720, 124.8800],
 ];
 
 interface ReportRecord {
@@ -58,8 +58,8 @@ export default function AdminMap() {
   const [reports, setReports] =
     useState<ReportRecord[]>([]);
 
-  const [zones, setZones] =
-    useState<ZoneWithCount[]>([]);
+  const [areas, setAreas] =
+    useState<AreaWithCount[]>([]);
 
   const [loading, setLoading] =
     useState(true);
@@ -69,11 +69,17 @@ export default function AdminMap() {
       "street"
     );
 
-  const [selectedReport, setSelectedReport] =
-    useState<ReportRecord | null>(null);
+  const [
+    selectedReport,
+    setSelectedReport,
+  ] = useState<ReportRecord | null>(
+    null
+  );
 
-  const [statusFilter, setStatusFilter] =
-    useState("All");
+  const [
+    statusFilter,
+    setStatusFilter,
+  ] = useState("All");
 
   useEffect(() => {
     async function loadData() {
@@ -81,8 +87,8 @@ export default function AdminMap() {
         setLoading(true);
 
         const [
-          reportData,
-          zoneData,
+          reportResponse,
+          areaResponse,
         ] = await Promise.all([
           supabase
             .from("reports")
@@ -91,21 +97,24 @@ export default function AdminMap() {
               ascending: false,
             }),
 
-          getZoneBreakdown(),
+          getAreaBreakdown(),
         ]);
 
-        if (reportData.error) {
-          throw reportData.error;
+        if (reportResponse.error) {
+          throw reportResponse.error;
         }
 
-        if (reportData.data) {
+        if (reportResponse.data) {
           const fetchedReports =
-            reportData.data as ReportRecord[];
+            reportResponse.data as ReportRecord[];
 
-          setReports(fetchedReports);
+          setReports(
+            fetchedReports
+          );
 
           if (
-            fetchedReports.length > 0
+            fetchedReports.length >
+            0
           ) {
             setSelectedReport(
               fetchedReports[0]
@@ -113,7 +122,7 @@ export default function AdminMap() {
           }
         }
 
-        setZones(zoneData);
+        setAreas(areaResponse);
       } catch (error) {
         console.error(
           "Failed to load map data:",
@@ -148,6 +157,13 @@ export default function AdminMap() {
       );
     });
 
+  const pendingCount =
+    reports.filter(
+      (report) =>
+        report.status ===
+        "Pending"
+    ).length;
+
   const handleUpdateStatus = async (
     newStatus:
       | "Ongoing"
@@ -159,16 +175,17 @@ export default function AdminMap() {
     }
 
     try {
-      const { error } =
-        await supabase
-          .from("reports")
-          .update({
-            status: newStatus,
-          })
-          .eq(
-            "id",
-            selectedReport.id
-          );
+      const {
+        error,
+      } = await supabase
+        .from("reports")
+        .update({
+          status: newStatus,
+        })
+        .eq(
+          "id",
+          selectedReport.id
+        );
 
       if (error) {
         throw error;
@@ -193,7 +210,7 @@ export default function AdminMap() {
       );
     } catch (error) {
       console.error(
-        "Error updating status:",
+        "Failed to update report status:",
         error
       );
 
@@ -213,7 +230,7 @@ export default function AdminMap() {
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans">
-      <aside className="w-64 bg-white border-r border-slate-200 p-5 flex flex-col shrink-0">
+      <aside className="w-64 bg-white border-r border-slate-200 p-5 flex flex-col shrink-0 print:hidden">
         <div className="flex items-center gap-3 mb-8">
           <div className="h-10 w-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-black text-lg shadow-md">
             C
@@ -243,7 +260,10 @@ export default function AdminMap() {
 
           <button
             type="button"
-            className="w-full text-left px-4 py-3 rounded-xl bg-emerald-800 text-white shadow-sm"
+            onClick={() =>
+              navigate("/map")
+            }
+            className="w-full text-left px-4 py-3 rounded-xl bg-emerald-800 text-white shadow-sm transition-all"
           >
             Geotagged Map
           </button>
@@ -265,7 +285,7 @@ export default function AdminMap() {
             }
             className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
-            People
+            Accounts
           </button>
 
           <button
@@ -273,9 +293,15 @@ export default function AdminMap() {
             onClick={() =>
               navigate("/approval")
             }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all flex items-center justify-between"
           >
-            Approval
+            <span>Approval</span>
+
+            {pendingCount > 0 && (
+              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-black text-amber-800">
+                {pendingCount}
+              </span>
+            )}
           </button>
 
           <button
@@ -300,16 +326,16 @@ export default function AdminMap() {
         </div>
       </aside>
 
-      <main className="flex-1 p-6 overflow-y-auto">
+      <main className="flex-1 min-w-0 p-6 overflow-y-auto">
         <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-3">
+          <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-3">
             <div>
               <h1 className="text-xl font-bold text-slate-800">
-                Geotagged Waste Concern Map
+                Geotagged Incident Map
               </h1>
 
               <p className="text-xs text-slate-500">
-                Barangay Tankulan Waste Concern Overview & Management
+                Barangay Tankulan Waste Incident Overview & Management
               </p>
             </div>
 
@@ -360,7 +386,8 @@ export default function AdminMap() {
                     )
                   }
                   className={`px-3 py-1.5 rounded-lg transition-all ${
-                    tileType === "street"
+                    tileType ===
+                    "street"
                       ? "bg-emerald-800 text-white shadow-xs"
                       : "text-slate-700 hover:bg-slate-100"
                   }`}
@@ -386,12 +413,14 @@ export default function AdminMap() {
                 </button>
               </div>
             </div>
-          </div>
+          </header>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-8 h-[680px] overflow-hidden rounded-3xl border border-slate-200 shadow-xs relative">
               <MapContainer
-                center={DEFAULT_CENTER}
+                center={
+                  DEFAULT_CENTER
+                }
                 zoom={16}
                 minZoom={15}
                 maxZoom={19}
@@ -404,7 +433,8 @@ export default function AdminMap() {
                   width: "100%",
                 }}
               >
-                {tileType === "street" ? (
+                {tileType ===
+                "street" ? (
                   <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -419,7 +449,9 @@ export default function AdminMap() {
                 {filteredReports.map(
                   (report) => (
                     <CircleMarker
-                      key={report.id}
+                      key={
+                        report.id
+                      }
                       center={[
                         report.latitude!,
                         report.longitude!,
@@ -444,10 +476,10 @@ export default function AdminMap() {
                             "On-going"
                             ? "#10b981"
                             : report.status ===
-                                "Resolved"
+                              "Resolved"
                             ? "#3b82f6"
                             : report.status ===
-                                "Rejected"
+                              "Rejected"
                             ? "#ef4444"
                             : "#f59e0b",
                         fillOpacity: 0.9,
@@ -471,7 +503,9 @@ export default function AdminMap() {
                           </p>
 
                           <p className="text-[11px] font-semibold text-slate-500 mt-1">
-                            {report.status}
+                            {
+                              report.status
+                            }
                           </p>
                         </div>
                       </Popup>
@@ -481,13 +515,13 @@ export default function AdminMap() {
               </MapContainer>
             </div>
 
-            <div className="lg:col-span-4 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col justify-between font-sans">
+            <div className="lg:col-span-4 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
               {selectedReport ? (
                 <>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                       <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                        Waste Concern Review
+                        Report Inspection
                       </span>
 
                       <span
@@ -496,9 +530,9 @@ export default function AdminMap() {
                           "Resolved"
                             ? "bg-blue-50 text-blue-700 border border-blue-200"
                             : selectedReport.status ===
-                                  "Ongoing" ||
-                                selectedReport.status ===
-                                  "On-going"
+                                "Ongoing" ||
+                              selectedReport.status ===
+                                "On-going"
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                             : selectedReport.status ===
                               "Rejected"
@@ -506,7 +540,9 @@ export default function AdminMap() {
                             : "bg-amber-50 text-amber-700 border border-amber-200"
                         }`}
                       >
-                        {selectedReport.status}
+                        {
+                          selectedReport.status
+                        }
                       </span>
                     </div>
 
@@ -528,7 +564,8 @@ export default function AdminMap() {
                     </div>
 
                     {selectedReport.image_urls &&
-                    selectedReport.image_urls
+                    selectedReport
+                      .image_urls
                       .length > 0 ? (
                       <div className="h-44 rounded-2xl overflow-hidden border border-slate-100 bg-slate-50">
                         <img
@@ -536,7 +573,7 @@ export default function AdminMap() {
                             selectedReport
                               .image_urls[0]
                           }
-                          alt="Waste concern"
+                          alt="Incident location"
                           className="w-full h-full object-cover"
                         />
                       </div>
@@ -548,7 +585,7 @@ export default function AdminMap() {
 
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-slate-800">
-                        Waste Concern Description
+                        Incident Description
                       </label>
 
                       <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-700 leading-relaxed max-h-24 overflow-y-auto">
@@ -584,7 +621,7 @@ export default function AdminMap() {
 
                     <div className="pt-2 space-y-2">
                       <label className="text-xs font-bold text-slate-800">
-                        Update Waste Concern Status
+                        Update Incident Status
                       </label>
 
                       <div className="grid grid-cols-3 gap-2">
@@ -595,11 +632,11 @@ export default function AdminMap() {
                               "Ongoing"
                             )
                           }
-                          className="py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-[11px] font-bold transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={
                             selectedReport.status ===
                             "Ongoing"
                           }
+                          className="py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-[11px] font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Dispatch
                         </button>
@@ -611,11 +648,11 @@ export default function AdminMap() {
                               "Resolved"
                             )
                           }
-                          className="py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl text-[11px] font-bold transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={
                             selectedReport.status ===
                             "Resolved"
                           }
+                          className="py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl text-[11px] font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Resolve
                         </button>
@@ -627,11 +664,11 @@ export default function AdminMap() {
                               "Rejected"
                             )
                           }
-                          className="py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-xl text-[11px] font-bold transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={
                             selectedReport.status ===
                             "Rejected"
                           }
+                          className="py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-xl text-[11px] font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Dismiss
                         </button>
@@ -646,7 +683,7 @@ export default function AdminMap() {
                         `/report/${selectedReport.id}`
                       )
                     }
-                    className="mt-4 w-full py-2.5 bg-slate-950 hover:bg-slate-800 text-white rounded-2xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    className="mt-4 w-full py-2.5 bg-slate-950 hover:bg-slate-800 text-white rounded-2xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all"
                   >
                     FULL REPORT DETAILS
                     <ExternalLink
@@ -659,7 +696,7 @@ export default function AdminMap() {
                   <Layers size={32} />
 
                   <p className="text-xs font-semibold">
-                    Select a pin on the map to view the waste concern details.
+                    Select a pin on the map to view detailed incident management controls.
                   </p>
                 </div>
               )}
@@ -669,18 +706,20 @@ export default function AdminMap() {
           <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs space-y-4">
             <div>
               <h2 className="text-base font-extrabold text-slate-900">
-                Waste Concerns Breakdown by Purok
+                Waste Concerns Breakdown by Community Area
               </h2>
 
               <p className="text-xs text-slate-500">
-                Official Puroks of Barangay Tankulan
+                Community areas of Barangay Tankulan
               </p>
             </div>
 
             {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                {[1, 2, 3, 4].map(
-                  (index) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                {Array.from({
+                  length: 8,
+                }).map(
+                  (_, index) => (
                     <div
                       key={index}
                       className="h-12 animate-pulse rounded-2xl bg-slate-100"
@@ -689,31 +728,35 @@ export default function AdminMap() {
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                {zones.map((zone) => (
-                  <div
-                    key={zone.id}
-                    className="flex items-center justify-between rounded-2xl border border-slate-100 p-3.5 bg-slate-50/50 hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className="h-5 w-1.5 rounded-full shrink-0"
-                        style={{
-                          backgroundColor:
-                            zone.color,
-                        }}
-                      />
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {areas.map(
+                  (area) => (
+                    <div
+                      key={area.id}
+                      className="flex items-center justify-between rounded-2xl border border-slate-100 p-3.5 bg-slate-50/50 hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className="h-5 w-1.5 rounded-full shrink-0"
+                          style={{
+                            backgroundColor:
+                              area.color,
+                          }}
+                        />
 
-                      <span className="text-xs font-bold text-slate-800">
-                        {zone.name}
+                        <span className="text-xs font-bold text-slate-800 truncate">
+                          {area.name}
+                        </span>
+                      </div>
+
+                      <span className="text-xs font-extrabold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shrink-0 ml-2">
+                        {
+                          area.reportCount
+                        }
                       </span>
                     </div>
-
-                    <span className="text-xs font-extrabold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                      {zone.reportCount}
-                    </span>
-                  </div>
-                ))}
+                  )
+                )}
               </div>
             )}
           </div>

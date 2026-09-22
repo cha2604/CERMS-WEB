@@ -158,32 +158,35 @@ export default function MyReports() {
           No reports found in "{filter}".
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-3">
           {filteredReports.map((r) => (
             <button
               key={r.id}
               type="button"
               onClick={() => navigate(`/report/${r.id}`)}
-              className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3 shadow-sm hover:shadow-md transition-all flex flex-col justify-between text-left cursor-pointer"
+              className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:shadow-md"
             >
-              <div className="space-y-2">
-                {r.image_urls && r.image_urls.length > 0 && (
-                  <div className="h-40 w-full overflow-hidden rounded-xl bg-slate-100 border border-slate-200">
-                    <img
-                      src={r.image_urls[0]}
-                      alt={r.title}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                )}
+              {r.image_urls && r.image_urls.length > 0 ? (
+                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                  <img
+                    src={r.image_urls[0]}
+                    alt={r.title}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-[10px] font-semibold text-slate-400">
+                  No photo
+                </div>
+              )}
 
-                <div className="flex items-center justify-between pt-1">
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-mono font-bold text-emerald-800">
                     #{r.id.slice(0, 8)}
                   </span>
-
                   <span
-                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${getStatusBadgeClass(
+                    className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${getStatusBadgeClass(
                       r.status
                     )}`}
                   >
@@ -191,29 +194,26 @@ export default function MyReports() {
                   </span>
                 </div>
 
-                <h3 className="font-extrabold text-sm text-slate-900">
+                <h3 className="truncate font-extrabold text-sm text-slate-900">
                   {r.waste_type || r.title}
                 </h3>
 
-                <p className="text-xs font-semibold text-emerald-800">
-                  {r.location_name ||
-                    "Barangay Tankulan, Manolo Fortich"}
+                <p className="truncate text-xs font-semibold text-emerald-800">
+                  {r.location_name || "Barangay Tankulan, Manolo Fortich"}
                 </p>
 
-                <p className="text-xs text-slate-500 line-clamp-2">
+                <p className="truncate text-xs text-slate-500">
                   {r.description}
                 </p>
-              </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                <p className="text-[11px] font-mono text-slate-400">
-                  Submitted:{" "}
-                  {new Date(r.created_at).toLocaleDateString()}
-                </p>
-
-                <span className="text-xs font-black text-emerald-700">
-                  View Details →
-                </span>
+                <div className="flex items-center justify-between pt-1">
+                  <p className="text-[11px] font-mono text-slate-400">
+                    Submitted: {new Date(r.created_at).toLocaleDateString()}
+                  </p>
+                  <span className="text-xs font-black text-emerald-700">
+                    View Details →
+                  </span>
+                </div>
               </div>
             </button>
           ))}

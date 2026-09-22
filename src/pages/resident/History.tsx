@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FiArrowRight, FiCheckCircle, FiFileText } from "react-icons/fi";
+import { FiArrowRight, FiCheckCircle, FiFileText, FiXCircle } from "react-icons/fi";
 import { supabase } from "../../lib/supabase";
 
 interface ReportRecord {
@@ -8,7 +8,7 @@ interface ReportRecord {
   title: string;
   waste_type: string;
   location_name?: string | null;
-  status: "Pending" | "Ongoing" | "On-going" | "Resolved" | "Rejected";
+  status: "Resolved" | "Rejected";
   created_at: string;
 }
 
@@ -16,6 +16,7 @@ export default function History() {
   const [reports, setReports] = useState<ReportRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [activeTab, setActiveTab] = useState<"All" | "Resolved" | "Rejected">("All");
 
   useEffect(() => {
     async function loadHistory() {
@@ -34,11 +35,9 @@ export default function History() {
 
         const { data, error } = await supabase
           .from("reports")
-          .select(
-            "id, title, waste_type, location_name, status, created_at"
-          )
+          .select("id, title, waste_type, location_name, status, created_at")
           .eq("user_id", user.id)
-          .eq("status", "Resolved")
+          .in("status", ["Resolved", "Rejected"])
           .order("created_at", { ascending: false });
 
         if (error) {
@@ -70,16 +69,60 @@ export default function History() {
     });
   };
 
+  const filteredReports = reports.filter((report) => {
+    if (activeTab === "Resolved") return report.status === "Resolved";
+    if (activeTab === "Rejected") return report.status === "Rejected";
+    return true;
+  });
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       <div className="border-b border-slate-200 pb-4">
         <h1 className="text-xl sm:text-2xl font-black text-slate-900">
-          Resolved Reports History
+          Report History &amp; Archives
         </h1>
 
         <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-500">
-          Completed &amp; Resolved Barangay Tankulan Waste Concerns Log
+          Resolved Cleanups &amp; Rejected Reports Log
         </p>
+      </div>
+
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab("All")}
+          className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all ${
+            activeTab === "All"
+              ? "bg-slate-900 text-white shadow-xs"
+              : "text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          All History ({reports.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("Resolved")}
+          className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all ${
+            activeTab === "Resolved"
+              ? "bg-emerald-700 text-white shadow-xs"
+              : "text-emerald-800 hover:bg-emerald-50"
+          }`}
+        >
+          Resolved ({reports.filter((r) => r.status === "Resolved").length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("Rejected")}
+          className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all ${
+            activeTab === "Rejected"
+              ? "bg-rose-600 text-white shadow-xs"
+              : "text-rose-700 hover:bg-rose-50"
+          }`}
+        >
+          Rejected ({reports.filter((r) => r.status === "Rejected").length})
+        </button>
       </div>
 
       {loading ? (
@@ -94,23 +137,23 @@ export default function History() {
             {errorMessage}
           </p>
         </div>
-      ) : reports.length === 0 ? (
+      ) : filteredReports.length === 0 ? (
         <div className="py-12 text-center">
           <div className="mx-auto h-12 w-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
             <FiFileText size={21} />
           </div>
 
           <p className="mt-3 text-sm font-extrabold text-slate-700">
-            No resolved reports
+            No reports in history
           </p>
 
           <p className="mt-1 text-xs font-semibold text-slate-400">
-            Your completed reports will appear here.
+            Resolved cleanups and rejected reports will appear here.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {reports.map((report) => (
+          {filteredReports.map((report) => (
             <Link
               key={report.id}
               to={`/report/${report.id}`}
@@ -131,10 +174,17 @@ export default function History() {
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className="px-3 py-1.5 rounded-full text-[11px] font-extrabold border bg-blue-100 text-blue-800 border-blue-300 flex items-center gap-1.5">
-                    <FiCheckCircle size={13} />
-                    Resolved
-                  </span>
+                  {report.status === "Resolved" ? (
+                    <span className="px-3 py-1.5 rounded-full text-[11px] font-extrabold border bg-emerald-100 text-emerald-800 border-emerald-300 flex items-center gap-1.5">
+                      <FiCheckCircle size={13} />
+                      Resolved
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1.5 rounded-full text-[11px] font-extrabold border bg-rose-100 text-rose-800 border-rose-300 flex items-center gap-1.5">
+                      <FiXCircle size={13} />
+                      Rejected
+                    </span>
+                  )}
 
                   <FiArrowRight
                     size={17}

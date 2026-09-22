@@ -1,8 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FiCheck,
@@ -13,6 +9,16 @@ import {
   FiX,
 } from "react-icons/fi";
 import { supabase } from "../../lib/supabase";
+
+interface ResidentProfile {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  address: string | null;
+  contact_number: string | null;
+  role: string | null;
+  created_at: string;
+}
 
 interface ApprovalRecord {
   user_id: string;
@@ -38,274 +44,333 @@ type ApprovalTab =
 export default function Approval() {
   const navigate = useNavigate();
 
-  const [
-    approvals,
-    setApprovals,
-  ] = useState<
-    ApprovalRecord[]
-  >([]);
+  const [approvals, setApprovals] =
+    useState<ApprovalRecord[]>([]);
 
   const [loading, setLoading] =
     useState(true);
 
-  const [
-    actionLoading,
-    setActionLoading,
-  ] = useState<string | null>(
-    null
-  );
+  const [actionLoading, setActionLoading] =
+    useState<string | null>(null);
 
-  const [
-    errorMessage,
-    setErrorMessage,
-  ] = useState("");
+  const [errorMessage, setErrorMessage] =
+    useState("");
+
+  const [successMessage, setSuccessMessage] =
+    useState("");
 
   const [search, setSearch] =
     useState("");
 
-  const [
-    activeTab,
-    setActiveTab,
-  ] = useState<ApprovalTab>(
-    "pending"
-  );
+  const [activeTab, setActiveTab] =
+    useState<ApprovalTab>("pending");
 
-  const [
-    successMessage,
-    setSuccessMessage,
-  ] = useState("");
-
-  const fetchApprovals =
+  const verifyAdminSession =
     async () => {
-      setLoading(true);
-      setErrorMessage("");
+      const {
+        data: {
+          session,
+        },
+      } =
+        await supabase.auth.getSession();
 
-      try {
-        const {
-          data: approvalData,
-          error: approvalError,
-        } = await supabase
-          .from(
-            "resident_approvals"
+      if (!session?.user) {
+        navigate(
+          "/login",
+          {
+            replace: true,
+            state: {
+              from: "/approval",
+            },
+          }
+        );
+
+        return null;
+      }
+
+      const {
+        data: profile,
+        error,
+      } =
+        await supabase
+          .from("profiles")
+          .select("role")
+          .eq(
+            "id",
+            session.user.id
           )
+          .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (
+        profile?.role !==
+        "admin"
+      ) {
+        await supabase.auth.signOut();
+
+        navigate(
+          "/login",
+          {
+            replace: true,
+          }
+        );
+
+        return null;
+      }
+
+      return session.user;
+    };
+
+  const fetchApprovals = async () => {
+    setLoading(true);
+    setErrorMessage("");
+
+    try {
+      const adminUser =
+        await verifyAdminSession();
+
+      if (!adminUser) {
+        return;
+      }
+
+      const [
+        profilesRes,
+        approvalsRes,
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select(
+            "id, full_name, email, address, contact_number, role, created_at"
+          )
+          .eq("role", "resident")
+          .order("created_at", {
+            ascending: false,
+          }),
+
+        supabase
+          .from("resident_approvals")
           .select(
             "user_id, status, reviewed_by, reviewed_at, created_at"
           )
-          .order(
-            "created_at",
-            {
-              ascending:
-                false,
-            }
-          );
+          .order("created_at", {
+            ascending: false,
+          }),
+      ]);
 
-        if (approvalError) {
-          throw approvalError;
-        }
-
-        if (
-          !approvalData ||
-          approvalData.length ===
-            0
-        ) {
-          setApprovals(
-            []
-          );
-          return;
-        }
-
-        const userIds =
-          approvalData.map(
-            (approval) =>
-              approval.user_id
-          );
-
-        const {
-          data: profileData,
-          error: profileError,
-        } = await supabase
-          .from("profiles")
-          .select(
-            "id, full_name, email, address, contact_number"
-          )
-          .in(
-            "id",
-            userIds
-          );
-
-        if (profileError) {
-          throw profileError;
-        }
-
-        const profilesById =
-          new Map(
-            (
-              profileData ||
-              []
-            ).map(
-              (profile) => [
-                profile.id,
-                profile,
-              ]
-            )
-          );
-
-        const combinedData: ApprovalRecord[] =
-          approvalData.map(
-            (approval) => {
-              const profile =
-                profilesById.get(
-                  approval.user_id
-                );
-
-              return {
-                user_id:
-                  approval.user_id,
-
-                status:
-                  approval.status,
-
-                reviewed_by:
-                  approval.reviewed_by,
-
-                reviewed_at:
-                  approval.reviewed_at,
-
-                created_at:
-                  approval.created_at,
-
-                full_name:
-                  profile?.full_name ||
-                  "Unknown Resident",
-
-                email:
-                  profile?.email ||
-                  "No email",
-
-                address:
-                  profile?.address ||
-                  null,
-
-                contact_number:
-                  profile?.contact_number ||
-                  null,
-              };
-            }
-          );
-
-        setApprovals(
-          combinedData
-        );
-      } catch (error) {
-        console.error(
-          "Failed to load approval requests:",
-          error
-        );
-
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Failed to load approval requests."
-        );
-      } finally {
-        setLoading(false);
+      if (profilesRes.error) {
+        throw profilesRes.error;
       }
-    };
+
+      if (approvalsRes.error) {
+        throw approvalsRes.error;
+      }
+
+      const profiles =
+        (profilesRes.data ||
+          []) as ResidentProfile[];
+
+      const approvalRows =
+        approvalsRes.data || [];
+
+      const approvalMap =
+        new Map(
+          approvalRows.map(
+            (approval) => [
+              approval.user_id,
+              approval,
+            ]
+          )
+        );
+
+      const combinedData: ApprovalRecord[] =
+        profiles.map((profile) => {
+          const existingApproval =
+            approvalMap.get(
+              profile.id
+            );
+
+          return {
+            user_id:
+              profile.id,
+
+            status:
+              existingApproval?.status ||
+              "pending",
+
+            reviewed_by:
+              existingApproval?.reviewed_by ||
+              null,
+
+            reviewed_at:
+              existingApproval?.reviewed_at ||
+              null,
+
+            created_at:
+              existingApproval?.created_at ||
+              profile.created_at,
+
+            full_name:
+              profile.full_name ||
+              "Unknown Resident",
+
+            email:
+              profile.email ||
+              "No email",
+
+            address:
+              profile.address ||
+              null,
+
+            contact_number:
+              profile.contact_number ||
+              null,
+          };
+        });
+
+      setApprovals(
+        combinedData
+      );
+    } catch (error) {
+      console.error(
+        "Failed to load approval requests:",
+        error
+      );
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to load approval requests."
+      );
+
+      setApprovals([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchApprovals();
   }, []);
 
-  const handleApproval =
-    async (
-      userId: string,
-      status:
-        | "approved"
-        | "rejected"
-    ) => {
-      setActionLoading(
-        userId
-      );
+  const handleApproval = async (
+    userId: string,
+    status:
+      | "approved"
+      | "rejected"
+  ) => {
+    setActionLoading(userId);
+    setErrorMessage("");
+    setSuccessMessage("");
 
-      setErrorMessage("");
-      setSuccessMessage("");
+    try {
+      const adminUser =
+        await verifyAdminSession();
 
-      try {
-        const {
-          data: {
-            user: adminUser,
-          },
-        } =
-          await supabase.auth.getUser();
+      if (!adminUser) {
+        return;
+      }
 
-        if (!adminUser) {
-          throw new Error(
-            "Your admin session could not be verified."
-          );
-        }
+      const {
+        data: resident,
+        error:
+          residentError,
+      } =
+        await supabase
+          .from("profiles")
+          .select(
+            "id, role"
+          )
+          .eq(
+            "id",
+            userId
+          )
+          .maybeSingle();
 
-        const { error } =
-          await supabase
-            .from(
-              "resident_approvals"
-            )
-            .update({
+      if (residentError) {
+        throw residentError;
+      }
+
+      if (
+        !resident ||
+        resident.role !==
+          "resident"
+      ) {
+        throw new Error(
+          "Only resident accounts can be approved."
+        );
+      }
+
+      const reviewedAt =
+        new Date().toISOString();
+
+      const {
+        error,
+      } =
+        await supabase
+          .from(
+            "resident_approvals"
+          )
+          .upsert(
+            {
+              user_id:
+                userId,
               status,
               reviewed_by:
                 adminUser.id,
               reviewed_at:
-                new Date().toISOString(),
-            })
-            .eq(
-              "user_id",
-              userId
-            );
+                reviewedAt,
+            },
+            {
+              onConflict:
+                "user_id",
+            }
+          );
 
-        if (error) {
-          throw error;
-        }
-
-        setApprovals(
-          (current) =>
-            current.map(
-              (approval) =>
-                approval.user_id ===
-                userId
-                  ? {
-                      ...approval,
-                      status,
-                      reviewed_by:
-                        adminUser.id,
-                      reviewed_at:
-                        new Date().toISOString(),
-                    }
-                  : approval
-            )
-        );
-
-        setSuccessMessage(
-          status ===
-            "approved"
-            ? "Resident account approved successfully."
-            : "Resident registration rejected."
-        );
-      } catch (error) {
-        console.error(
-          "Failed to update approval:",
-          error
-        );
-
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Failed to update approval request."
-        );
-      } finally {
-        setActionLoading(
-          null
-        );
+      if (error) {
+        throw error;
       }
-    };
+
+      setApprovals(
+        (current) =>
+          current.map(
+            (approval) =>
+              approval.user_id ===
+              userId
+                ? {
+                    ...approval,
+                    status,
+                    reviewed_by:
+                      adminUser.id,
+                    reviewed_at:
+                      reviewedAt,
+                  }
+                : approval
+          )
+      );
+
+      setSuccessMessage(
+        status === "approved"
+          ? "Resident account approved successfully."
+          : "Resident registration rejected."
+      );
+    } catch (error) {
+      console.error(
+        "Failed to update approval:",
+        error
+      );
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to update approval request."
+      );
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const filteredApprovals =
     useMemo(() => {
@@ -389,21 +454,20 @@ export default function Approval() {
         "rejected"
     ).length;
 
-  const formatDate =
-    (
-      dateString: string
-    ) => {
-      return new Date(
-        dateString
-      ).toLocaleDateString(
-        "en-US",
-        {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }
-      );
-    };
+  const formatDate = (
+    dateString: string
+  ) => {
+    return new Date(
+      dateString
+    ).toLocaleDateString(
+      "en-US",
+      {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }
+    );
+  };
 
   const handleLogout =
     async () => {
@@ -414,26 +478,19 @@ export default function Approval() {
       });
     };
 
-  const getStatusClass =
-    (
-      status: ApprovalRecord["status"]
-    ) => {
-      if (
-        status ===
-        "approved"
-      ) {
-        return "bg-green-100 text-green-700 border-green-200";
-      }
+  const getStatusClass = (
+    status: ApprovalRecord["status"]
+  ) => {
+    if (status === "approved") {
+      return "bg-green-100 text-green-700 border-green-200";
+    }
 
-      if (
-        status ===
-        "rejected"
-      ) {
-        return "bg-red-100 text-red-700 border-red-200";
-      }
+    if (status === "rejected") {
+      return "bg-red-100 text-red-700 border-red-200";
+    }
 
-      return "bg-amber-100 text-amber-700 border-amber-200";
-    };
+    return "bg-amber-100 text-amber-700 border-amber-200";
+  };
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans">
@@ -458,9 +515,11 @@ export default function Approval() {
           <button
             type="button"
             onClick={() =>
-              navigate("/dashboard")
+              navigate(
+                "/dashboard"
+              )
             }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
             Dashboard
           </button>
@@ -470,7 +529,7 @@ export default function Approval() {
             onClick={() =>
               navigate("/map")
             }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
             Geotagged Map
           </button>
@@ -478,9 +537,11 @@ export default function Approval() {
           <button
             type="button"
             onClick={() =>
-              navigate("/reports")
+              navigate(
+                "/reports"
+              )
             }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
             Reports
           </button>
@@ -490,9 +551,9 @@ export default function Approval() {
             onClick={() =>
               navigate("/users")
             }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
-            People
+            Accounts
           </button>
 
           <button
@@ -506,9 +567,7 @@ export default function Approval() {
             {pendingCount >
               0 && (
               <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-black text-amber-800">
-                {
-                  pendingCount
-                }
+                {pendingCount}
               </span>
             )}
           </button>
@@ -516,9 +575,11 @@ export default function Approval() {
           <button
             type="button"
             onClick={() =>
-              navigate("/archive")
+              navigate(
+                "/archive"
+              )
             }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
             Archive
           </button>
@@ -530,7 +591,7 @@ export default function Approval() {
             onClick={
               handleLogout
             }
-            className="w-full py-2.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 rounded-xl text-sm font-bold transition-all cursor-pointer"
+            className="w-full py-2.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 rounded-xl text-sm font-bold transition-all"
           >
             Log Out
           </button>
@@ -580,16 +641,12 @@ export default function Approval() {
                   </p>
 
                   <p className="mt-1 text-3xl font-black text-amber-900">
-                    {
-                      pendingCount
-                    }
+                    {pendingCount}
                   </p>
                 </div>
 
                 <div className="flex h-11 w-11 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-                  <FiClock
-                    size={20}
-                  />
+                  <FiClock size={20} />
                 </div>
               </div>
             </div>
@@ -602,16 +659,12 @@ export default function Approval() {
                   </p>
 
                   <p className="mt-1 text-3xl font-black text-green-900">
-                    {
-                      approvedCount
-                    }
+                    {approvedCount}
                   </p>
                 </div>
 
                 <div className="flex h-11 w-11 items-center justify-center rounded-full bg-green-100 text-green-700">
-                  <FiCheck
-                    size={20}
-                  />
+                  <FiCheck size={20} />
                 </div>
               </div>
             </div>
@@ -624,16 +677,12 @@ export default function Approval() {
                   </p>
 
                   <p className="mt-1 text-3xl font-black text-red-900">
-                    {
-                      rejectedCount
-                    }
+                    {rejectedCount}
                   </p>
                 </div>
 
                 <div className="flex h-11 w-11 items-center justify-center rounded-full bg-red-100 text-red-700">
-                  <FiX
-                    size={20}
-                  />
+                  <FiX size={20} />
                 </div>
               </div>
             </div>
@@ -721,12 +770,9 @@ export default function Approval() {
                   <input
                     type="text"
                     value={search}
-                    onChange={(
-                      e
-                    ) =>
+                    onChange={(e) =>
                       setSearch(
-                        e.target
-                          .value
+                        e.target.value
                       )
                     }
                     placeholder="Search resident..."
@@ -738,17 +784,13 @@ export default function Approval() {
 
             {successMessage && (
               <div className="mx-4 mt-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-semibold text-green-700">
-                {
-                  successMessage
-                }
+                {successMessage}
               </div>
             )}
 
             {errorMessage && (
               <div className="mx-4 mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-                {
-                  errorMessage
-                }
+                {errorMessage}
               </div>
             )}
 
@@ -763,13 +805,10 @@ export default function Approval() {
                   Loading approval requests...
                 </div>
               </div>
-            ) : filteredApprovals.length ===
-              0 ? (
+            ) : filteredApprovals.length === 0 ? (
               <div className="px-6 py-16 text-center">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                  <FiUsers
-                    size={24}
-                  />
+                  <FiUsers size={24} />
                 </div>
 
                 <h2 className="mt-4 text-lg font-black text-slate-800">
@@ -813,9 +852,7 @@ export default function Approval() {
 
                   <tbody>
                     {filteredApprovals.map(
-                      (
-                        approval
-                      ) => (
+                      (approval) => (
                         <tr
                           key={
                             approval.user_id
@@ -840,19 +877,15 @@ export default function Approval() {
 
                           <td className="px-5 py-4">
                             <p className="text-sm font-semibold text-slate-700">
-                              {
-                                approval.contact_number ||
-                                "Not provided"
-                              }
+                              {approval.contact_number ||
+                                "Not provided"}
                             </p>
                           </td>
 
                           <td className="max-w-[280px] px-5 py-4">
                             <p className="truncate text-sm font-semibold text-slate-700">
-                              {
-                                approval.address ||
-                                "No address provided"
-                              }
+                              {approval.address ||
+                                "No address provided"}
                             </p>
                           </td>
 
@@ -895,9 +928,7 @@ export default function Approval() {
                                   className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-black text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   <FiCheck
-                                    size={
-                                      14
-                                    }
+                                    size={14}
                                   />
 
                                   Approve
@@ -918,9 +949,7 @@ export default function Approval() {
                                   className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   <FiX
-                                    size={
-                                      14
-                                    }
+                                    size={14}
                                   />
 
                                   Reject

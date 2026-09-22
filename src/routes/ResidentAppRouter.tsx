@@ -4,6 +4,7 @@ import Login from "../pages/resident/Login";
 import Register from "../pages/auth/Register";
 import ApprovalPending from "../pages/resident/ApprovalPending";
 import ApprovalRejected from "../pages/resident/ApprovalRejected";
+import AuthCallback from "../pages/auth/AuthCallBack";
 
 import ResidentLayout from "../pages/resident/Layout";
 import ResidentDashboard from "../pages/resident/Dashboard";
@@ -14,6 +15,7 @@ import History from "../pages/resident/History";
 import Profile from "../pages/resident/Profile";
 import ReportDetails from "../pages/resident/ReportDetails";
 import MapView from "../pages/resident/Mapview";
+import Notifications from "../pages/resident/Notification";
 
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -48,6 +50,11 @@ export default function UserAppRouter() {
       <Route
         path="/approval-rejected"
         element={<ApprovalRejected />}
+      />
+
+      <Route
+        path="/auth/callback"
+        element={<AuthCallback />}
       />
 
       <Route element={<ProtectedRoute />}>
@@ -102,6 +109,13 @@ export default function UserAppRouter() {
             path="/history"
             element={
               <History />
+            }
+          />
+
+          <Route
+            path="/notifications"
+            element={
+              <Notifications />
             }
           />
 

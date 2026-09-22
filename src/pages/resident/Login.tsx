@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Link,
   useNavigate,
-  useSearchParams,
 } from "react-router-dom";
 import Card from "../../components/common/Card";
 import Input from "../../components/common/Input";
@@ -10,16 +9,15 @@ import PasswordInput from "../../components/common/Password";
 import Button from "../../components/common/Button";
 import { FiMail } from "react-icons/fi";
 import {
+  ensureResidentProfile,
+  getAccountStatus,
   loginWithEmail,
   loginWithGoogle,
-  getAccountStatus,
 } from "../../lib/authHelpers";
 import { supabase } from "../../lib/supabase";
 
 export default function Login() {
   const navigate = useNavigate();
-  const [searchParams] =
-    useSearchParams();
 
   const [loading, setLoading] =
     useState(false);
@@ -28,9 +26,6 @@ export default function Login() {
     useState(false);
 
   const [errorMessage, setErrorMessage] =
-    useState("");
-
-  const [successMessage, setSuccessMessage] =
     useState("");
 
   const [email, setEmail] =
@@ -42,18 +37,21 @@ export default function Login() {
   const [rememberMe, setRememberMe] =
     useState(false);
 
-  useEffect(() => {
-    if (
-      searchParams.get("registered") ===
-      "1"
-    ) {
-      setSuccessMessage(
-        "Your account has been created and is now waiting for barangay admin approval."
+  async function redirectByRole() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error(
+        "Your login session could not be verified."
       );
     }
-  }, [searchParams]);
 
-  async function redirectByRole() {
+    await ensureResidentProfile(
+      user
+    );
+
     const status =
       await getAccountStatus();
 
@@ -106,9 +104,12 @@ export default function Login() {
       return;
     }
 
-    navigate("/dashboard", {
-      replace: true,
-    });
+    navigate(
+      "/dashboard",
+      {
+        replace: true,
+      }
+    );
   }
 
   async function handleEmailLogin(
@@ -118,11 +119,10 @@ export default function Login() {
 
     setLoading(true);
     setErrorMessage("");
-    setSuccessMessage("");
 
     try {
       await loginWithEmail(
-        email,
+        email.trim(),
         password
       );
 
@@ -146,7 +146,6 @@ export default function Login() {
   async function handleGoogleLogin() {
     setGoogleLoading(true);
     setErrorMessage("");
-    setSuccessMessage("");
 
     try {
       await loginWithGoogle();
@@ -180,6 +179,20 @@ export default function Login() {
 
           <p className="mt-1 text-sm text-gray-500">
             Login to your resident account
+          </p>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-center">
+          <p className="text-xs font-black uppercase tracking-wide text-green-800">
+            Barangay Office Hours
+          </p>
+
+          <p className="mt-1 text-sm font-bold text-green-900">
+            8:00 AM – 5:00 PM
+          </p>
+
+          <p className="mt-1 text-[11px] font-medium text-green-700">
+            Approval requests are reviewed during barangay office hours.
           </p>
         </div>
 
@@ -301,12 +314,6 @@ export default function Login() {
               ? "Connecting..."
               : "Continue with Google"}
           </button>
-
-          {successMessage && (
-            <div className="rounded-xl bg-green-50 p-4 text-center text-sm text-green-700">
-              {successMessage}
-            </div>
-          )}
 
           {errorMessage && (
             <div className="rounded-xl bg-red-50 p-4 text-center text-sm text-red-700">

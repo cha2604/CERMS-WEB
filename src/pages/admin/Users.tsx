@@ -5,6 +5,9 @@ import { supabase } from "../../lib/supabase";
 interface UserProfile {
   id: string;
   full_name: string | null;
+  email: string | null;
+  contact_number: string | null;
+  address: string | null;
   role: string | null;
   created_at: string;
 }
@@ -12,9 +15,8 @@ interface UserProfile {
 export default function Users() {
   const navigate = useNavigate();
 
-  const [users, setUsers] = useState<UserProfile[]>(
-    []
-  );
+  const [users, setUsers] =
+    useState<UserProfile[]>([]);
 
   const [loading, setLoading] =
     useState(true);
@@ -39,21 +41,22 @@ export default function Users() {
     try {
       setLoading(true);
 
-      const { data, error } =
-        await supabase
-          .from("profiles")
-          .select("*")
-          .neq("role", "admin")
-          .order("created_at", {
-            ascending: false,
-          });
+      const {
+        data,
+        error,
+      } = await supabase
+        .from("profiles")
+        .select(
+          "id, full_name, email, contact_number, address, role, created_at"
+        )
+        .neq("role", "admin")
+        .order("created_at", {
+          ascending: false,
+        });
 
       if (error) {
         throw error;
       }
-
-      const activeProfiles =
-        (data as UserProfile[]) || [];
 
       const {
         data: archivedData,
@@ -66,156 +69,218 @@ export default function Users() {
         throw archivedError;
       }
 
-      const archivedIds = new Set(
-        (archivedData || []).map(
-          (item) => item.id
-        )
-      );
-
-      const filteredActiveUsers =
-        activeProfiles.filter(
-          (user) =>
-            !archivedIds.has(user.id)
+      const archivedIds =
+        new Set(
+          (archivedData || []).map(
+            (item) => item.id
+          )
         );
 
-      setUsers(filteredActiveUsers);
-    } catch (err) {
+      const activeUsers =
+        ((data as UserProfile[]) ||
+          []).filter(
+          (user) =>
+            !archivedIds.has(
+              user.id
+            )
+        );
+
+      setUsers(activeUsers);
+    } catch (error) {
       console.error(
-        "Error fetching users:",
-        err
+        "Error fetching resident accounts:",
+        error
       );
     } finally {
       setLoading(false);
     }
   }
 
-  const handleDeleteUser = async (
-    user: UserProfile
-  ) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${
-        user.full_name || "this resident"
-      }? The account will be moved to Archive.`
-    );
+  const handleArchiveUser =
+    async (
+      user: UserProfile
+    ) => {
+      const confirmed =
+        window.confirm(
+          `Are you sure you want to archive ${
+            user.full_name ||
+            "this resident"
+          }? The account will be moved to Archive.`
+        );
 
-    if (!confirmed) {
-      return;
-    }
+      if (!confirmed) {
+        return;
+      }
 
-    try {
-      const { error } =
-        await supabase
-          .from("archived_profiles")
+      try {
+        const {
+          error,
+        } = await supabase
+          .from(
+            "archived_profiles"
+          )
           .upsert({
             id: user.id,
-            full_name: user.full_name,
-            role: user.role,
-            created_at: user.created_at,
+            full_name:
+              user.full_name,
+            email:
+              user.email,
+            contact_number:
+              user.contact_number,
+            address:
+              user.address,
+            role:
+              user.role,
+            created_at:
+              user.created_at,
             archived_at:
               new Date().toISOString(),
           });
 
-      if (error) {
-        throw error;
+        if (error) {
+          throw error;
+        }
+
+        setUsers(
+          (current) =>
+            current.filter(
+              (item) =>
+                item.id !==
+                user.id
+            )
+        );
+
+        alert(
+          `${
+            user.full_name ||
+            "Resident"
+          } has been moved to Archive.`
+        );
+      } catch (error) {
+        console.error(
+          "Error archiving resident account:",
+          error
+        );
+
+        alert(
+          "Failed to archive resident account."
+        );
+      }
+    };
+
+  const handleSendViolation =
+    async () => {
+      if (
+        !selectedUser ||
+        !violationReason.trim()
+      ) {
+        return;
       }
 
-      setUsers((prev) =>
-        prev.filter(
-          (item) => item.id !== user.id
-        )
-      );
-
-      alert(
-        `${
-          user.full_name || "Resident"
-        } has been moved to Archive.`
-      );
-    } catch (err) {
-      console.error(
-        "Error archiving user:",
-        err
-      );
-
-      alert(
-        "Failed to archive resident."
-      );
-    }
-  };
-
-  const handleSendViolation = async () => {
-    if (
-      !selectedUser ||
-      !violationReason.trim()
-    ) {
-      return;
-    }
-
-    try {
-      const { error } =
-        await supabase
-          .from("notifications")
+      try {
+        const {
+          error,
+        } = await supabase
+          .from(
+            "notifications"
+          )
           .insert([
             {
-              user_id: selectedUser.id,
+              user_id:
+                selectedUser.id,
               title:
                 "Warning: Violation Issued",
               message:
                 violationReason,
-              type: "violation",
+              type:
+                "violation",
               created_at:
                 new Date().toISOString(),
             },
           ]);
 
-      if (error) {
-        throw error;
+        if (error) {
+          throw error;
+        }
+
+        alert(
+          `Violation sent to ${
+            selectedUser.full_name ||
+            "resident"
+          }.`
+        );
+
+        setIsModalOpen(false);
+        setViolationReason("");
+        setSelectedUser(null);
+      } catch (error) {
+        console.error(
+          "Error sending violation:",
+          error
+        );
+
+        alert(
+          "Failed to send violation notification."
+        );
+      }
+    };
+
+  const handleLogout =
+    async () => {
+      await supabase.auth.signOut();
+
+      navigate(
+        "/login",
+        {
+          replace: true,
+        }
+      );
+    };
+
+  const extractArea =
+    (address: string | null) => {
+      if (!address) {
+        return "Not provided";
       }
 
-      alert(
-        `Violation sent to ${
-          selectedUser.full_name ||
-          "resident"
-        }.`
+      return (
+        address.split(",")[0] ||
+        "Not provided"
       );
-
-      setIsModalOpen(false);
-      setViolationReason("");
-      setSelectedUser(null);
-    } catch (err) {
-      console.error(
-        "Error sending violation:",
-        err
-      );
-
-      alert(
-        "Failed to send violation notification."
-      );
-    }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/login");
-  };
+    };
 
   const filteredUsers =
-    users.filter((user) => {
-      const query = search
-        .trim()
-        .toLowerCase();
+    users.filter(
+      (user) => {
+        const query =
+          search
+            .trim()
+            .toLowerCase();
 
-      const name =
-        user.full_name
-          ?.toLowerCase() || "";
+        const name =
+          user.full_name?.toLowerCase() ||
+          "";
 
-      const id =
-        user.id.toLowerCase();
+        const email =
+          user.email?.toLowerCase() ||
+          "";
 
-      return (
-        name.includes(query) ||
-        id.includes(query)
-      );
-    });
+        const contact =
+          user.contact_number?.toLowerCase() ||
+          "";
+
+        const address =
+          user.address?.toLowerCase() ||
+          "";
+
+        return (
+          name.includes(query) ||
+          email.includes(query) ||
+          contact.includes(query) ||
+          address.includes(query)
+        );
+      }
+    );
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans">
@@ -240,9 +305,11 @@ export default function Users() {
           <button
             type="button"
             onClick={() =>
-              navigate("/dashboard")
+              navigate(
+                "/dashboard"
+              )
             }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
             Dashboard
           </button>
@@ -252,7 +319,7 @@ export default function Users() {
             onClick={() =>
               navigate("/map")
             }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
             Geotagged Map
           </button>
@@ -260,26 +327,30 @@ export default function Users() {
           <button
             type="button"
             onClick={() =>
-              navigate("/reports")
+              navigate(
+                "/reports"
+              )
             }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
             Reports
           </button>
 
           <button
             type="button"
-            className="w-full text-left px-4 py-3 rounded-xl bg-emerald-800 text-white shadow-sm transition-all cursor-pointer"
+            className="w-full text-left px-4 py-3 rounded-xl bg-emerald-800 text-white shadow-sm"
           >
-            People
+            Accounts
           </button>
 
           <button
             type="button"
             onClick={() =>
-              navigate("/approval")
+              navigate(
+                "/approval"
+              )
             }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
             Approval
           </button>
@@ -287,9 +358,11 @@ export default function Users() {
           <button
             type="button"
             onClick={() =>
-              navigate("/archive")
+              navigate(
+                "/archive"
+              )
             }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
             Archive
           </button>
@@ -298,8 +371,10 @@ export default function Users() {
         <div className="pt-4 border-t border-slate-100">
           <button
             type="button"
-            onClick={handleLogout}
-            className="w-full py-2.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 rounded-xl text-sm font-bold transition-all cursor-pointer"
+            onClick={
+              handleLogout
+            }
+            className="w-full py-2.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 rounded-xl text-sm font-bold transition-all"
           >
             Log Out
           </button>
@@ -310,12 +385,12 @@ export default function Users() {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5 border-b border-slate-200">
             <div>
-              <h1 className="text-xl font-black text-slate-900">
-                Manage People
+              <h1 className="text-2xl font-black text-slate-900">
+                Resident Accounts
               </h1>
 
               <p className="text-xs text-slate-500 mt-1">
-                Overview of registered residents
+                Manage registered resident accounts
               </p>
             </div>
 
@@ -327,7 +402,7 @@ export default function Users() {
                   e.target.value
                 )
               }
-              placeholder="Search residents..."
+              placeholder="Search accounts..."
               className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-600"
             />
           </div>
@@ -335,12 +410,12 @@ export default function Users() {
           <div className="p-6">
             {loading ? (
               <div className="py-12 text-center text-sm font-semibold text-slate-400">
-                Loading registered residents...
+                Loading resident accounts...
               </div>
             ) : filteredUsers.length ===
               0 ? (
               <div className="py-12 text-center text-sm font-semibold text-slate-400">
-                No registered residents found.
+                No resident accounts found.
               </div>
             ) : (
               <div className="border border-slate-200 rounded-xl overflow-hidden">
@@ -348,15 +423,19 @@ export default function Users() {
                   <thead>
                     <tr className="bg-slate-100 font-bold text-slate-700 border-b border-slate-200">
                       <th className="py-3 px-4">
-                        Full Name
+                        Resident
                       </th>
 
                       <th className="py-3 px-4">
-                        User ID
+                        Email
                       </th>
 
                       <th className="py-3 px-4">
-                        Role
+                        Contact Number
+                      </th>
+
+                      <th className="py-3 px-4">
+                        Area
                       </th>
 
                       <th className="py-3 px-4">
@@ -373,7 +452,9 @@ export default function Users() {
                     {filteredUsers.map(
                       (user) => (
                         <tr
-                          key={user.id}
+                          key={
+                            user.id
+                          }
                           className="hover:bg-slate-50"
                         >
                           <td className="py-3 px-4 font-bold text-slate-900">
@@ -381,18 +462,21 @@ export default function Users() {
                               "Unnamed Resident"}
                           </td>
 
-                          <td className="py-3 px-4 font-mono text-slate-500">
-                            {user.id.slice(
-                              0,
-                              8
-                            )}
-                            ...
+                          <td className="py-3 px-4 text-slate-600">
+                            {user.email ||
+                              "Not provided"}
+                          </td>
+
+                          <td className="py-3 px-4 font-medium text-slate-700">
+                            {user.contact_number ||
+                              "Not provided"}
                           </td>
 
                           <td className="py-3 px-4">
                             <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-                              {user.role ||
-                                "resident"}
+                              {extractArea(
+                                user.address
+                              )}
                             </span>
                           </td>
 
@@ -402,33 +486,36 @@ export default function Users() {
                             ).toLocaleDateString()}
                           </td>
 
-                          <td className="py-3 px-4 text-right space-x-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedUser(
-                                  user
-                                );
-                                setIsModalOpen(
-                                  true
-                                );
-                              }}
-                              className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
-                            >
-                              Send Violation
-                            </button>
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedUser(
+                                    user
+                                  );
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleDeleteUser(
-                                  user
-                                )
-                              }
-                              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
-                            >
-                              Delete
-                            </button>
+                                  setIsModalOpen(
+                                    true
+                                  );
+                                }}
+                                className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
+                              >
+                                Send Violation
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleArchiveUser(
+                                    user
+                                  )
+                                }
+                                className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
+                              >
+                                Archive
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )
@@ -459,7 +546,9 @@ export default function Users() {
               </p>
 
               <textarea
-                value={violationReason}
+                value={
+                  violationReason
+                }
                 onChange={(e) =>
                   setViolationReason(
                     e.target.value
@@ -473,11 +562,19 @@ export default function Users() {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsModalOpen(false);
-                    setViolationReason("");
-                    setSelectedUser(null);
+                    setIsModalOpen(
+                      false
+                    );
+
+                    setViolationReason(
+                      ""
+                    );
+
+                    setSelectedUser(
+                      null
+                    );
                   }}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
                 >
                   Cancel
                 </button>
@@ -490,7 +587,7 @@ export default function Users() {
                   disabled={
                     !violationReason.trim()
                   }
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Confirm &amp; Send
                 </button>

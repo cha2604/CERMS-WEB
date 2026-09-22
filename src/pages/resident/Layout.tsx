@@ -9,6 +9,7 @@ import {
   FiClock,
   FiUser,
   FiLogOut,
+  FiBell,
 } from "react-icons/fi";
 import { supabase } from "../../lib/supabase";
 
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { label: "Reports", icon: FiFileText, to: "/my-reports" },
   { label: "Draft Reports", icon: FiEdit3, to: "/drafts" },
   { label: "History", icon: FiClock, to: "/history" },
+  { label: "Notifications", icon: FiBell, to: "/notifications" },
   { label: "Profile", icon: FiUser, to: "/profile" },
 ];
 
@@ -25,9 +27,10 @@ export default function ResidentLayout() {
   const navigate = useNavigate();
   const [profileName, setProfileName] = useState<string>("");
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   useEffect(() => {
-    async function loadProfile() {
+    async function loadData() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -42,11 +45,19 @@ export default function ResidentLayout() {
         if (data?.full_name) {
           setProfileName(data.full_name);
         }
+
+        const { count } = await supabase
+          .from("notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("is_read", false);
+
+        setUnreadCount(count || 0);
       }
     }
 
-    loadProfile();
-  }, []);
+    loadData();
+  }, [location.pathname]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -76,6 +87,19 @@ export default function ResidentLayout() {
             </h1>
           </div>
         </div>
+
+        <Link
+          to="/notifications"
+          className="relative p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all"
+          title="Notifications"
+        >
+          <FiBell size={20} />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 h-5 w-5 bg-rose-500 text-white rounded-full text-[10px] font-black flex items-center justify-center border-2 border-white">
+              {unreadCount}
+            </span>
+          )}
+        </Link>
       </header>
 
       {isDrawerOpen && (
@@ -99,59 +123,79 @@ export default function ResidentLayout() {
                 C
               </div>
 
-              <h2 className="font-extrabold text-slate-900 text-xl tracking-tight">
-                CERMS
-              </h2>
+              <div>
+                <h2 className="font-extrabold text-slate-900 text-lg">
+                  CERMS
+                </h2>
+
+                <p className="text-[11px] text-emerald-900 font-bold">
+                  Barangay Tankulan
+                </p>
+              </div>
             </div>
 
             <button
               type="button"
               onClick={() => setIsDrawerOpen(false)}
-              className="p-2 rounded-xl text-slate-700 hover:bg-emerald-200/60 transition-all"
+              className="p-2 rounded-xl text-slate-600 hover:bg-emerald-200/50 transition-all"
             >
-              <FiX size={22} />
+              <FiX size={20} />
             </button>
           </div>
 
-          <nav className="space-y-1.5 text-sm font-bold">
+          <nav className="space-y-2">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
-
-              const active =
-                location.pathname === item.to ||
-                (item.to === "/my-reports" &&
-                  location.pathname.startsWith("/report/"));
+              const isActive = location.pathname === item.to;
 
               return (
                 <Link
-                  key={item.label}
+                  key={item.to}
                   to={item.to}
                   onClick={() => setIsDrawerOpen(false)}
-                  className={`flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all ${
-                    active
-                      ? "bg-emerald-300/90 text-emerald-950 shadow-sm"
-                      : "text-slate-700 hover:bg-emerald-200/60"
+                  className={`flex items-center gap-3.5 px-4 py-3.5 rounded-2xl font-extrabold text-sm transition-all ${
+                    isActive
+                      ? "bg-emerald-800 text-white shadow-md"
+                      : "text-slate-800 hover:bg-emerald-200/60 hover:text-emerald-950"
                   }`}
                 >
                   <Icon size={20} />
                   <span>{item.label}</span>
+
+                  {item.label === "Notifications" && unreadCount > 0 && (
+                    <span className="ml-auto bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                      {unreadCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
           </nav>
         </div>
 
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-rose-100 hover:text-rose-700 transition-all border-t border-emerald-200/60"
-        >
-          <FiLogOut size={20} />
-          <span>Logout</span>
-        </button>
+        <div className="pt-6 border-t border-emerald-200/60 space-y-4">
+          <div className="bg-white/60 rounded-2xl p-3.5 border border-emerald-200/80">
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Logged in as
+            </p>
+
+            <p className="text-sm font-black text-slate-900 truncate">
+              {profileName || "Resident User"}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-sm transition-all"
+          >
+            <FiLogOut size={16} />
+            <span>Sign Out</span>
+          </button>
+        </div>
       </aside>
 
-      <main className="flex-1 p-6 sm:p-8 overflow-y-auto">
+      <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-5xl w-full mx-auto">
         <Outlet context={{ profileName }} />
       </main>
     </div>

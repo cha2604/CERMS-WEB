@@ -395,7 +395,7 @@ export default function Archive() {
             }
             className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
           >
-            People
+            Accounts
           </button>
 
           <button

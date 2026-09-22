@@ -5,7 +5,8 @@ import { getAccountStatus } from "../../lib/authHelpers";
 
 export default function AuthCallback() {
   const navigate = useNavigate();
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorMessage, setErrorMessage] =
+    useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -18,7 +19,9 @@ export default function AuthCallback() {
         } = await supabase.auth.getSession();
 
         if (session?.user) {
-          await handleAuthenticatedUser(session.user.id);
+          await handleAuthenticatedUser(
+            session.user.id
+          );
           return;
         }
 
@@ -34,6 +37,7 @@ export default function AuthCallback() {
             ) {
               if (newSession?.user) {
                 subscription.unsubscribe();
+
                 await handleAuthenticatedUser(
                   newSession.user.id
                 );
@@ -45,6 +49,7 @@ export default function AuthCallback() {
         timeoutId = window.setTimeout(() => {
           if (mounted) {
             subscription.unsubscribe();
+
             setErrorMessage(
               "Google sign-in could not be completed. Please try again."
             );
@@ -66,14 +71,18 @@ export default function AuthCallback() {
       }
     }
 
-    async function handleAuthenticatedUser(userId: string) {
+    async function handleAuthenticatedUser(
+      userId: string
+    ) {
       try {
-        const { data: existingProfile, error: profileError } =
-          await supabase
-            .from("profiles")
-            .select("id")
-            .eq("id", userId)
-            .maybeSingle();
+        const {
+          data: existingProfile,
+          error: profileError,
+        } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("id", userId)
+          .maybeSingle();
 
         if (profileError) {
           throw profileError;
@@ -82,15 +91,19 @@ export default function AuthCallback() {
         if (!existingProfile) {
           const {
             data: { user },
-          } = await supabase.auth.getUser();
+          } =
+            await supabase.auth.getUser();
 
           const fullName =
             user?.user_metadata?.full_name ||
             user?.user_metadata?.name ||
             "";
 
-          const { error: insertError } =
-            await supabase.from("profiles").insert({
+          const {
+            error: insertError,
+          } = await supabase
+            .from("profiles")
+            .insert({
               id: userId,
               full_name: fullName,
               email: user?.email || null,
@@ -102,14 +115,15 @@ export default function AuthCallback() {
           }
         }
 
-        const status = await getAccountStatus();
+        const status =
+          await getAccountStatus();
 
-        if (status.suspended) {
+        if (status.role === "admin") {
           await supabase.auth.signOut();
 
           if (mounted) {
             setErrorMessage(
-              "Your account has been suspended. Please contact the barangay office."
+              "Admin accounts cannot log in through the resident portal."
             );
           }
 
@@ -117,12 +131,48 @@ export default function AuthCallback() {
         }
 
         if (mounted) {
-          navigate(
-            status.role === "admin"
-              ? "/admin/dashboard"
-              : "/dashboard",
-            { replace: true }
-          );
+          if (
+            status.approvalStatus ===
+            "pending"
+          ) {
+            navigate(
+              "/approval-pending",
+              {
+                replace: true,
+              }
+            );
+
+            return;
+          }
+
+          if (
+            status.approvalStatus ===
+            "rejected"
+          ) {
+            navigate(
+              "/approval-rejected",
+              {
+                replace: true,
+              }
+            );
+
+            return;
+          }
+
+          if (
+            status.approvalStatus !==
+            "approved"
+          ) {
+            setErrorMessage(
+              "Your account approval could not be verified. Please try again later."
+            );
+
+            return;
+          }
+
+          navigate("/dashboard", {
+            replace: true,
+          });
         }
       } catch (error) {
         console.error(
@@ -166,7 +216,9 @@ export default function AuthCallback() {
           <button
             type="button"
             onClick={() =>
-              navigate("/login", { replace: true })
+              navigate("/login", {
+                replace: true,
+              })
             }
             className="mt-6 rounded-xl bg-green-700 px-6 py-3 text-sm font-bold text-white transition hover:bg-green-800"
           >

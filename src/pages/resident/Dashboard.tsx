@@ -39,7 +39,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadReports() {
+    async function loadDashboardData() {
       try {
         setLoading(true);
 
@@ -64,14 +64,14 @@ export default function Dashboard() {
 
         setReports((data as ReportRecord[]) || []);
       } catch (error) {
-        console.error("Failed to fetch resident reports:", error);
+        console.error("Failed to fetch resident dashboard data:", error);
         setReports([]);
       } finally {
         setLoading(false);
       }
     }
 
-    loadReports();
+    loadDashboardData();
   }, [navigate]);
 
   const totalReports = reports.length;
@@ -139,7 +139,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       <div>
         <h1 className="text-2xl sm:text-3xl font-black text-slate-900">
           Hello, {profileName || "Resident"}!
@@ -242,7 +242,7 @@ export default function Dashboard() {
 
             <div>
               <p className="font-extrabold text-sm">
-                Submit Report
+                Add Report
               </p>
 
               <p className="text-xs text-emerald-100 mt-0.5">
@@ -332,25 +332,31 @@ export default function Dashboard() {
       </section>
 
       {rejectedCount > 0 && (
-        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
-          <div className="flex items-start gap-3">
-            <div className="h-9 w-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
-              <FiXCircle size={18} />
+        <Link
+          to="/history"
+          className="block bg-rose-50 border border-rose-200 hover:bg-rose-100/60 rounded-2xl p-4 transition-all"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="h-9 w-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <FiXCircle size={18} />
+              </div>
+
+              <div>
+                <p className="text-sm font-extrabold text-rose-900">
+                  Rejected Reports Logged
+                </p>
+
+                <p className="text-xs font-semibold text-rose-700 mt-0.5">
+                  You have {rejectedCount} rejected report
+                  {rejectedCount !== 1 ? "s" : ""}. Tap to view details in History.
+                </p>
+              </div>
             </div>
 
-            <div>
-              <p className="text-sm font-extrabold text-rose-900">
-                Rejected Reports
-              </p>
-
-              <p className="text-xs font-semibold text-rose-700 mt-0.5">
-                You have {rejectedCount} rejected report
-                {rejectedCount !== 1 ? "s" : ""}. Open My Reports to
-                view the details.
-              </p>
-            </div>
+            <FiArrowRight size={18} className="text-rose-600 shrink-0" />
           </div>
-        </div>
+        </Link>
       )}
     </div>
   );

@@ -1,75 +1,123 @@
 import { supabase } from "./supabase";
 
-export interface Zone {
+export const TANKULAN_AREAS = [
+  "CENTRO",
+  "TUMAMPONG",
+  "ST. JOSEPH",
+  "MULBERRY",
+  "MANGIMA",
+  "LOWER KALANAWAN",
+  "UPPER KALANAWAN",
+  "PROPER KALANAWAN",
+  "UPPER POL-OTON",
+  "LOWER POL-OTON",
+  "KIHARE",
+  "LOWER SOSOHON",
+  "UPPER SOSOHON",
+] as const;
+
+export interface AreaWithCount {
   id: string;
   name: string;
-  min_lat: number;
-  max_lat: number;
-  min_lng: number;
-  max_lng: number;
   color: string;
-}
-
-export interface ZoneWithCount extends Zone {
   reportCount: number;
 }
 
-export const DEFAULT_TANKULAN_PUROKS: Zone[] = [
-  { id: "purok-1", name: "Purok 1 (Poblacion / Proper)", min_lat: 8.364, max_lat: 8.372, min_lng: 124.860, max_lng: 124.872, color: "#10b981" },
-  { id: "purok-2a", name: "Purok 2a (52nd Engineer Brigade / Susohon)", min_lat: 8.362, max_lat: 8.368, min_lng: 124.872, max_lng: 124.880, color: "#3b82f6" },
-  { id: "purok-2b", name: "Purok 2b (Binantalan)", min_lat: 8.360, max_lat: 8.365, min_lng: 124.855, max_lng: 124.862, color: "#8b5cf6" },
-  { id: "purok-3a", name: "Purok 3a (Lower Kalanawan)", min_lat: 8.358, max_lat: 8.363, min_lng: 124.862, max_lng: 124.868, color: "#ec4899" },
-  { id: "purok-3b", name: "Purok 3b (Upper Kalanawan)", min_lat: 8.356, max_lat: 8.360, min_lng: 124.868, max_lng: 124.875, color: "#f43f5e" },
-  { id: "purok-4a", name: "Purok 4a (Kihare)", min_lat: 8.353, max_lat: 8.358, min_lng: 124.862, max_lng: 124.870, color: "#f97316" },
-  { id: "purok-4b", name: "Purok 4b (Mulberry Subdivision)", min_lat: 8.350, max_lat: 8.355, min_lng: 124.858, max_lng: 124.865, color: "#eab308" },
-  { id: "purok-5", name: "Purok 5 (Pol-oton)", min_lat: 8.348, max_lat: 8.353, min_lng: 124.868, max_lng: 124.876, color: "#06b6d4" },
-  { id: "purok-6a", name: "Purok 6a (Bliss)", min_lat: 8.355, max_lat: 8.360, min_lng: 124.875, max_lng: 124.882, color: "#14b8a6" },
-  { id: "purok-6b", name: "Purok 6b (Mangima)", min_lat: 8.360, max_lat: 8.370, min_lng: 124.880, max_lng: 124.892, color: "#6366f1" },
+const AREA_COLORS = [
+  "#10b981",
+  "#3b82f6",
+  "#f97316",
+  "#eab308",
+  "#ec4899",
+  "#8b5cf6",
+  "#14b8a6",
+  "#f43f5e",
+  "#06b6d4",
+  "#6366f1",
+  "#84cc16",
+  "#a855f7",
+  "#ef4444",
 ];
 
-export async function getZones(): Promise<Zone[]> {
-  try {
-    const { data, error } = await supabase.from("zones").select("*");
-    if (error || !data || data.length === 0) return DEFAULT_TANKULAN_PUROKS;
-    return data as Zone[];
-  } catch (err) {
-    return DEFAULT_TANKULAN_PUROKS;
-  }
+function normalizeText(
+  value: string
+) {
+  return value
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-export function findZoneForCoords(
-  lat: number,
-  lng: number,
-  zones: Zone[]
-): Zone | null {
-  return (
-    zones.find(
-      (z) => lat >= z.min_lat && lat <= z.max_lat && lng >= z.min_lng && lng <= z.max_lng
-    ) ?? null
-  );
-}
-
-export async function getZoneBreakdown(): Promise<ZoneWithCount[]> {
-  const zones = await getZones();
-  let reports: any[] = [];
+export async function getAreaBreakdown(): Promise<
+  AreaWithCount[]
+> {
+  let reports: {
+    location_name:
+      | string
+      | null;
+  }[] = [];
 
   try {
-    const { data, error } = await supabase.from("reports").select("latitude, longitude");
-    if (!error && data) reports = data;
-  } catch (err) {
-    console.error("Failed fetching report coordinates:", err);
+    const {
+      data,
+      error,
+    } = await supabase
+      .from("reports")
+      .select("location_name");
+
+    if (!error && data) {
+      reports = data;
+    }
+  } catch (error) {
+    console.error(
+      "Failed fetching report locations:",
+      error
+    );
   }
 
-  const counts: Record<string, number> = {};
-  zones.forEach((z) => (counts[z.id] = 0));
+  const normalizedAreas =
+    TANKULAN_AREAS.map(
+      (name, index) => ({
+        id: name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(
+            /(^-|-$)/g,
+            ""
+          ),
+        name,
+        color:
+          AREA_COLORS[index],
+        reportCount: 0,
+      })
+    );
 
   for (const report of reports) {
-    if (report.latitude == null || report.longitude == null) continue;
-    const zone = findZoneForCoords(report.latitude, report.longitude, zones);
-    if (zone) counts[zone.id] = (counts[zone.id] ?? 0) + 1;
+    if (!report.location_name) {
+      continue;
+    }
+
+    const location =
+      normalizeText(
+        report.location_name
+      );
+
+    const matchedArea =
+      normalizedAreas.find(
+        (area) =>
+          location.includes(
+            normalizeText(
+              area.name
+            )
+          )
+      );
+
+    if (matchedArea) {
+      matchedArea.reportCount += 1;
+    }
   }
 
-  return zones.map((z) => ({ ...z, reportCount: counts[z.id] ?? 0 }));
+  return normalizedAreas;
 }
 
 export interface MonthlyCount {
@@ -77,32 +125,76 @@ export interface MonthlyCount {
   count: number;
 }
 
-export async function getMonthlyReportTrends(): Promise<MonthlyCount[]> {
-  const currentYear = new Date().getFullYear();
-  const startOfYear = new Date(currentYear, 0, 1).toISOString();
+export async function getMonthlyReportTrends(): Promise<
+  MonthlyCount[]
+> {
+  const currentYear =
+    new Date().getFullYear();
 
-  let data: any[] = [];
+  const startOfYear =
+    new Date(
+      currentYear,
+      0,
+      1
+    ).toISOString();
+
+  let data: {
+    created_at: string;
+  }[] = [];
+
   try {
-    const { data: res, error } = await supabase
+    const {
+      data: result,
+      error,
+    } = await supabase
       .from("reports")
       .select("created_at")
-      .gte("created_at", startOfYear);
-    if (!error && res) data = res;
-  } catch (err) {
-    console.error("Failed fetching monthly trends:", err);
+      .gte(
+        "created_at",
+        startOfYear
+      );
+
+    if (!error && result) {
+      data = result;
+    }
+  } catch (error) {
+    console.error(
+      "Failed fetching monthly trends:",
+      error
+    );
   }
 
   const monthLabels = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
   ];
 
-  const counts = new Array(12).fill(0);
+  const counts =
+    new Array(12).fill(0);
 
   for (const row of data) {
-    const month = new Date(row.created_at).getMonth();
-    counts[month]++;
+    const month =
+      new Date(
+        row.created_at
+      ).getMonth();
+
+    counts[month] += 1;
   }
 
-  return monthLabels.map((label, i) => ({ month: label, count: counts[i] }));
+  return monthLabels.map(
+    (month, index) => ({
+      month,
+      count: counts[index],
+    })
+  );
 }
