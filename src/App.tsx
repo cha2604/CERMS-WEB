@@ -22,6 +22,17 @@ const USER_DOMAIN = normalizeDomain(
   "user.localhost"
 );
 
+function domainMatches(hostname: string, target: string) {
+  if (!target) return false;
+  if (hostname === target) return true;
+  if (hostname.endsWith(`.${target}`)) return true;
+
+  const hostLabel = hostname.split(".")[0];
+  const targetLabel = target.split(".")[0];
+
+  return hostLabel.length > 0 && hostLabel.startsWith(targetLabel);
+}
+
 function RedirectToUserDomain() {
   useEffect(() => {
     window.location.replace(`http://${USER_DOMAIN}:5173/login`);
@@ -39,11 +50,11 @@ function RedirectToUserDomain() {
 export default function App() {
   const hostname = window.location.hostname.toLowerCase();
 
-  if (hostname === ADMIN_DOMAIN) {
+  if (domainMatches(hostname, ADMIN_DOMAIN)) {
     return <AdminAppRouter />;
   }
 
-  if (hostname === USER_DOMAIN) {
+  if (domainMatches(hostname, USER_DOMAIN)) {
     return <UserAppRouter />;
   }
 
