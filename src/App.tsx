@@ -2,11 +2,29 @@ import { useEffect } from "react";
 import UserAppRouter from "./routes/ResidentAppRouter";
 import AdminAppRouter from "./routes/AdminAppRouter";
 
+function normalizeDomain(value: string | undefined, fallback: string) {
+  const domain = (value || fallback)
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z]+:\/\//, "")
+    .replace(/\/.*$/, "");
+
+  return domain;
+}
+
+const ADMIN_DOMAIN = normalizeDomain(
+  import.meta.env.VITE_ADMIN_DOMAIN,
+  "admin.localhost"
+);
+
+const USER_DOMAIN = normalizeDomain(
+  import.meta.env.VITE_USER_DOMAIN,
+  "user.localhost"
+);
+
 function RedirectToUserDomain() {
   useEffect(() => {
-    window.location.replace(
-      "http://user.localhost:5173/login"
-    );
+    window.location.replace(`http://${USER_DOMAIN}:5173/login`);
   }, []);
 
   return (
@@ -19,14 +37,13 @@ function RedirectToUserDomain() {
 }
 
 export default function App() {
-  const hostname =
-    window.location.hostname.toLowerCase();
+  const hostname = window.location.hostname.toLowerCase();
 
-  if (hostname === "admin.localhost") {
+  if (hostname === ADMIN_DOMAIN) {
     return <AdminAppRouter />;
   }
 
-  if (hostname === "user.localhost") {
+  if (hostname === USER_DOMAIN) {
     return <UserAppRouter />;
   }
 
