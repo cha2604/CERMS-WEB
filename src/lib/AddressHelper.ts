@@ -1,5 +1,3 @@
-import { getZones, findZoneForCoords } from "./ZoneQueries";
-
 async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
   try {
     const res = await fetch(
@@ -24,20 +22,11 @@ async function reverseGeocode(lat: number, lng: number): Promise<string | null> 
 }
 
 export async function getFullAddress(lat: number, lng: number): Promise<string> {
-  const [zones, streetInfo] = await Promise.all([
-    getZones(),
-    reverseGeocode(lat, lng),
-  ]);
+  const streetInfo = await reverseGeocode(lat, lng);
 
-  const zone = findZoneForCoords(lat, lng, zones);
+  const parts = [streetInfo, "Barangay Tankulan", "Manolo Fortich", "Bukidnon"].filter(
+    Boolean
+  );
 
-  const parts = [
-    zone?.name,
-    streetInfo,
-    "Barangay Tankulan",
-    "Manolo Fortich",
-    "Bukidnon",
-  ].filter(Boolean);
-
-  return parts.join(", ");
+  return Array.from(new Set(parts)).join(", ");
 }

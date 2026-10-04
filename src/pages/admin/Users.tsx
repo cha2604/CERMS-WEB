@@ -27,7 +27,7 @@ export default function Users() {
   const [selectedUser, setSelectedUser] =
     useState<UserProfile | null>(null);
 
-  const [violationReason, setViolationReason] =
+  const [noticeMessage, setNoticeMessage] =
     useState("");
 
   const [isModalOpen, setIsModalOpen] =
@@ -168,11 +168,11 @@ export default function Users() {
       }
     };
 
-  const handleSendViolation =
+  const handleSendNotice =
     async () => {
       if (
         !selectedUser ||
-        !violationReason.trim()
+        !noticeMessage.trim()
       ) {
         return;
       }
@@ -189,11 +189,11 @@ export default function Users() {
               user_id:
                 selectedUser.id,
               title:
-                "Warning: Violation Issued",
+                "Notice from the Barangay Office",
               message:
-                violationReason,
+                noticeMessage.trim(),
               type:
-                "violation",
+                "admin_message",
               created_at:
                 new Date().toISOString(),
             },
@@ -204,23 +204,23 @@ export default function Users() {
         }
 
         alert(
-          `Violation sent to ${
+          `Notice sent to ${
             selectedUser.full_name ||
             "resident"
           }.`
         );
 
         setIsModalOpen(false);
-        setViolationReason("");
+        setNoticeMessage("");
         setSelectedUser(null);
       } catch (error) {
         console.error(
-          "Error sending violation:",
+          "Error sending notice:",
           error
         );
 
         alert(
-          "Failed to send violation notification."
+          "Failed to send the notification."
         );
       }
     };
@@ -501,7 +501,7 @@ export default function Users() {
                                 }}
                                 className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
                               >
-                                Send Violation
+Send Notice
                               </button>
 
                               <button
@@ -533,11 +533,13 @@ export default function Users() {
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl p-6 max-w-md w-full border border-slate-200 shadow-xl space-y-4">
               <h3 className="text-lg font-black text-slate-900">
-                Send Violation Warning
+                Send Notice to Resident
               </h3>
 
               <p className="text-xs text-slate-500">
-                Sending official warning notice to{" "}
+                This notice appears in the
+                resident&apos;s notifications as
+                a regular update to{" "}
                 <span className="font-bold text-slate-800">
                   {selectedUser.full_name ||
                     "Resident"}
@@ -547,14 +549,14 @@ export default function Users() {
 
               <textarea
                 value={
-                  violationReason
+                  noticeMessage
                 }
                 onChange={(e) =>
-                  setViolationReason(
+                  setNoticeMessage(
                     e.target.value
                   )
                 }
-                placeholder="Enter violation details or reason for suspicious activity..."
+                placeholder="Write the message you want the resident to receive..."
                 className="w-full h-28 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none resize-none"
               />
 
@@ -566,7 +568,7 @@ export default function Users() {
                       false
                     );
 
-                    setViolationReason(
+                    setNoticeMessage(
                       ""
                     );
 
@@ -582,12 +584,12 @@ export default function Users() {
                 <button
                   type="button"
                   onClick={
-                    handleSendViolation
+                    handleSendNotice
                   }
                   disabled={
-                    !violationReason.trim()
+                    !noticeMessage.trim()
                   }
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Confirm &amp; Send
                 </button>

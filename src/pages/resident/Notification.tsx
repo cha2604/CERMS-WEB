@@ -1,23 +1,21 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FiArrowLeft,
   FiBell,
   FiCheckCircle,
   FiInfo,
-  FiAlertTriangle,
   FiCheck,
+  FiRefreshCw,
 } from "react-icons/fi";
 import { supabase } from "../../lib/supabase";
 
-export type NotificationType =
-  | "status_update"
-  | "violation"
-  | "admin_message";
+export type NotificationType = "status_update" | "admin_message";
 
 export interface NotificationRecord {
   id: string;
   user_id: string;
+  report_id?: string | null;
   title: string;
   message: string;
   type: NotificationType;
@@ -31,12 +29,16 @@ export default function Notifications() {
 
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"All" | "Unread" | "Violations">("All");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [filter, setFilter] = useState<"All" | "Unread">("All");
 
-  useEffect(() => {
-    async function loadNotifications() {
+  const loadNotifications = useCallback(
+    async (isRefresh = false) => {
       try {
-        setLoading(true);
+        if (!isRefresh) {
+          setLoading(true);
+        }
+        setErrorMessage("");
 
         const {
           data: { user },
@@ -60,85 +62,133 @@ export default function Notifications() {
         setNotifications((data as NotificationRecord[]) || []);
       } catch (error) {
         console.error("Failed to load notifications:", error);
-        setNotifications([]);
+
+        const code = (error as { code?: string } | null)?.code;
+        const details = error instanceof Error ? error.message : String(error ?? "");
+
+        if (code === "PGRST205" || /could not find the table/i.test(details)) {
+          setErrorMessage(
+            "Notifications are not set up on the server yet. Run supabase/migrations/20261003000000_create_notifications.sql in the Supabase SQL Editor, then reload."
+          );
+        } else {
+          setErrorMessage(
+            "We couldn't load your notifications right now. Please try again."
+          );
+        }
       } finally {
         setLoading(false);
       }
-    }
+    },
+    [navigate]
+  );
 
+  useEffect(() => {
     loadNotifications();
-  }, [navigate]);
+  }, [loadNotifications]);
 
-  const markAsRead = async (id: string) => {
-    try {
-      await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("id", id);
+  useEffect(() => {
+    let active = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
-      setNotifications((prev) =>
-        prev.map((item) =>
-          item.id === id ? { ...item, is_read: true } : item
-        )
-      );
-    } catch (error) {
-      console.error("Failed to mark notification as read:", error);
-    }
-  };
-
-  const markAllAsRead = async () => {
-    try {
+    async function subscribe() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) return;
+      if (!user || !active) return;
 
-      await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("user_id", user.id)
-        .eq("is_read", false);
+      channel = supabase
+        .channel(`notifications:${user.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const incoming = payload.new as NotificationRecord;
 
-      setNotifications((prev) =>
-        prev.map((item) => ({ ...item, is_read: true }))
-      );
-    } catch (error) {
-      console.error("Failed to mark all as read:", error);
+            setNotifications((prev) =>
+              prev.some((item) => item.id === incoming.id)
+                ? prev
+                : [incoming, ...prev]
+            );
+          }
+        )
+        .subscribe();
+    }
+
+    subscribe();
+
+    return () => {
+      active = false;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, []);
+
+  const markAsRead = async (id: string) => {
+    setNotifications((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, is_read: true } : item))
+    );
+
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Failed to mark notification as read:", error);
+      await loadNotifications(true);
     }
   };
 
-  const filteredNotifications = notifications.filter((item) => {
-    if (filter === "Unread") return !item.is_read;
-    if (filter === "Violations") return item.type === "violation";
-    return true;
-  });
+  const markAllAsRead = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    setNotifications((prev) =>
+      prev.map((item) => ({ ...item, is_read: true }))
+    );
+
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", user.id)
+      .eq("is_read", false);
+
+    if (error) {
+      console.error("Failed to mark all as read:", error);
+      await loadNotifications(true);
+    }
+  };
+
+  const filteredNotifications = notifications.filter((item) =>
+    filter === "Unread" ? !item.is_read : true
+  );
 
   const unreadCount = notifications.filter((item) => !item.is_read).length;
 
   const getNotificationIcon = (type: NotificationType) => {
-    switch (type) {
-      case "violation":
-        return (
-          <div className="h-10 w-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
-            <FiAlertTriangle size={20} />
-          </div>
-        );
-
-      case "status_update":
-        return (
-          <div className="h-10 w-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-            <FiCheckCircle size={20} />
-          </div>
-        );
-
-      default:
-        return (
-          <div className="h-10 w-10 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
-            <FiInfo size={20} />
-          </div>
-        );
+    if (type === "status_update") {
+      return (
+        <div className="h-10 w-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+          <FiCheckCircle size={20} />
+        </div>
+      );
     }
+
+    return (
+      <div className="h-10 w-10 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
+        <FiInfo size={20} />
+      </div>
+    );
   };
 
   const formatDate = (dateString: string) => {
@@ -209,21 +259,24 @@ export default function Notifications() {
         >
           Unread ({unreadCount})
         </button>
-
-        <button
-          type="button"
-          onClick={() => setFilter("Violations")}
-          className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all ${
-            filter === "Violations"
-              ? "bg-rose-600 text-white shadow-xs"
-              : "text-rose-700 hover:bg-rose-50"
-          }`}
-        >
-          Violations
-        </button>
       </div>
 
-      {loading ? (
+      {errorMessage ? (
+        <div className="py-12 text-center">
+          <p className="text-sm font-extrabold text-amber-700">
+            {errorMessage}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => loadNotifications(true)}
+            className="mt-3 inline-flex items-center gap-2 text-xs font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-xl hover:bg-emerald-100 transition-all"
+          >
+            <FiRefreshCw size={14} />
+            Retry
+          </button>
+        </div>
+      ) : loading ? (
         <div className="py-12 text-center text-sm font-semibold text-slate-400">
           Loading notifications...
         </div>
@@ -234,7 +287,9 @@ export default function Notifications() {
           </div>
 
           <p className="mt-3 text-sm font-extrabold text-slate-700">
-            No notifications yet
+            {filter === "Unread"
+              ? "No unread notifications"
+              : "No notifications yet"}
           </p>
 
           <p className="mt-1 text-xs font-semibold text-slate-400">
