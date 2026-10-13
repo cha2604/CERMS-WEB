@@ -292,6 +292,11 @@ export default function ReportIssue() {
       return [];
     }
 
+    console.log("uploadImages called with userId:", userId);
+
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log("Session:", session?.user?.id, session?.access_token ? "has token" : "no token");
+
     const uploadedUrls: string[] =
       [];
 
@@ -312,10 +317,12 @@ export default function ReportIssue() {
         "jpg";
 
       const fileName =
-        `${userId}_${Date.now()}_${i}.${fileExt}`;
+        `${Date.now()}_${i}.${fileExt}`;
 
       const filePath =
-        `reports/${fileName}`;
+        `reports/${userId}/${fileName}`;
+
+      console.log("Uploading to path:", filePath);
 
       const {
         error: uploadError,
@@ -333,6 +340,7 @@ export default function ReportIssue() {
         );
 
       if (uploadError) {
+        console.error("Upload error:", uploadError);
         throw new Error(
           `Photo upload failed for ${file.name}: ${uploadError.message}`
         );
@@ -381,6 +389,9 @@ export default function ReportIssue() {
         data: { user },
       } =
         await supabase.auth.getUser();
+
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log("Draft user:", user?.id, "Session:", session?.user?.id);
 
       if (!user) {
         setErrorMessage(
@@ -541,6 +552,9 @@ export default function ReportIssue() {
         data: { user },
       } =
         await supabase.auth.getUser();
+
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log("Submit user:", user?.id, "Session:", session?.user?.id);
 
       if (!user) {
         throw new Error(
@@ -888,19 +902,21 @@ export default function ReportIssue() {
             Report Location
           </label>
 
-          <LocationPicker
-            selectedLat={
-              coords.lat ??
-              undefined
-            }
-            selectedLng={
-              coords.lng ??
-              undefined
-            }
-            onLocationChange={
-              handleLocationChange
-            }
-          />
+          {!showCamera && (
+            <LocationPicker
+              selectedLat={
+                coords.lat ??
+                undefined
+              }
+              selectedLng={
+                coords.lng ??
+                undefined
+              }
+              onLocationChange={
+                handleLocationChange
+              }
+            />
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4 pt-2">

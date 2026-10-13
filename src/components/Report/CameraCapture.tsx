@@ -9,9 +9,10 @@ interface CameraCaptureProps {
 export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string>("");
   const [captured, setCaptured] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -25,10 +26,10 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
           mediaStream.getTracks().forEach((t) => t.stop());
           return;
         }
+        streamRef.current = mediaStream;
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
         }
-        setStream(mediaStream);
       } catch (err) {
         setError(
           err instanceof Error
@@ -42,19 +43,27 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
 
     return () => {
       cancelled = true;
-      if (stream) {
-        stream.getTracks().forEach((t) => t.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
       }
     };
-  }, [stream]);
+  }, []);
+
+  const handleVideoLoaded = useCallback(() => {
+    setVideoReady(true);
+  }, []);
 
   const handleCapture = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
+    if (!videoReady || video.videoWidth === 0) {
+      setError("Camera not ready yet. Please wait a moment.");
+      return;
+    }
 
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -71,8 +80,8 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
       onCapture(file);
       setCaptured(true);
 
-      if (stream) {
-        stream.getTracks().forEach((t) => t.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
       }
 
       setTimeout(() => {
@@ -80,7 +89,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
         onClose?.();
       }, 1200);
     }, "image/jpeg", 0.9);
-  }, [onCapture, onClose, stream]);
+  }, [onCapture, onClose, videoReady]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
@@ -90,8 +99,8 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
           <button
             type="button"
             onClick={() => {
-              if (stream) {
-                stream.getTracks().forEach((t) => t.stop());
+              if (streamRef.current) {
+                streamRef.current.getTracks().forEach((t) => t.stop());
               }
               onClose?.();
             }}
@@ -112,6 +121,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
               autoPlay
               playsInline
               muted
+              onLoadedMetadata={handleVideoLoaded}
               className="w-full h-full object-cover"
             />
             <canvas ref={canvasRef} className="hidden" />

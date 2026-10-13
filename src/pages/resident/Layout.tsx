@@ -18,7 +18,6 @@ const NAV_ITEMS = [
   { label: "Reports", icon: FiFileText, to: "/my-reports" },
   { label: "Draft Reports", icon: FiEdit3, to: "/drafts" },
   { label: "History", icon: FiClock, to: "/history" },
-  { label: "Notifications", icon: FiBell, to: "/notifications" },
   { label: "Profile", icon: FiUser, to: "/profile" },
 ];
 
@@ -161,12 +160,6 @@ export default function ResidentLayout() {
                 >
                   <Icon size={20} />
                   <span>{item.label}</span>
-
-                  {item.label === "Notifications" && unreadCount > 0 && (
-                    <span className="ml-auto bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                      {unreadCount}
-                    </span>
-                  )}
                 </Link>
               );
             })}

@@ -102,7 +102,7 @@ export default function Users() {
     ) => {
       const confirmed =
         window.confirm(
-          `Are you sure you want to archive ${
+          `Are you sure you want to delete ${
             user.full_name ||
             "this resident"
           }? The account will be moved to Archive.`
@@ -154,7 +154,7 @@ export default function Users() {
           `${
             user.full_name ||
             "Resident"
-          } has been moved to Archive.`
+          } has been deleted and moved to Archive.`
         );
       } catch (error) {
         console.error(
@@ -163,7 +163,7 @@ export default function Users() {
         );
 
         alert(
-          "Failed to archive resident account."
+          "Failed to delete resident account."
         );
       }
     };
@@ -513,7 +513,7 @@ Send Notice
                                 }
                                 className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
                               >
-                                Archive
+                                Delete
                               </button>
                             </div>
                           </td>

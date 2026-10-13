@@ -146,9 +146,6 @@ export default function LocationPicker({
   const [lat, setLat] = useState(initialLat);
   const [lng, setLng] = useState(initialLng);
 
-  const [currentLocation, setCurrentLocation] =
-    useState<{ lat: number; lng: number } | null>(null);
-
   const [reportAddress, setReportAddress] =
     useState("Barangay Tankulan, Manolo Fortich, Bukidnon");
 
@@ -157,6 +154,9 @@ export default function LocationPicker({
 
   const [fetchingAddress, setFetchingAddress] =
     useState(false);
+
+  const [currentLocation, setCurrentLocation] =
+    useState<{ lat: number; lng: number } | null>(null);
 
   const [locating, setLocating] =
     useState(false);
@@ -487,6 +487,14 @@ export default function LocationPicker({
 
           <RecenterOnChange lat={lat} lng={lng} />
 
+          <Marker
+            draggable={true}
+            eventHandlers={eventHandlers}
+            position={[lat, lng]}
+            icon={reportPinIcon}
+            ref={markerRef}
+          />
+
           {currentLocation && (
             <CircleMarker
               center={[
@@ -502,14 +510,6 @@ export default function LocationPicker({
               }}
             />
           )}
-
-          <Marker
-            draggable={true}
-            eventHandlers={eventHandlers}
-            position={[lat, lng]}
-            icon={reportPinIcon}
-            ref={markerRef}
-          />
         </MapContainer>
       </div>
 

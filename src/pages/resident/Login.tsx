@@ -178,7 +178,7 @@ export default function Login() {
           </h2>
 
           <p className="mt-1 text-sm text-gray-500">
-            Login to your resident account
+            Login to your account
           </p>
         </div>
 

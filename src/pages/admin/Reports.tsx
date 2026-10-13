@@ -145,7 +145,7 @@ export default function Reports() {
     useState(false);
 
   const [activeTab, setActiveTab] =
-    useState<ReportTab>("reports");
+    useState<ReportTab>("overview");
 
   const [searchQuery, setSearchQuery] =
     useState("");
@@ -659,25 +659,25 @@ export default function Reports() {
           id="print-area"
           className="max-w-7xl mx-auto"
         >
-          <div className="hidden print:block text-center border-b-2 border-emerald-800 pb-4 mb-6">
-            <p className="text-xs font-black tracking-[0.18em] text-slate-500">
+          <div className="hidden print:block text-center border-b border-emerald-800 pb-2 mb-3">
+            <p className="text-[10px] font-black tracking-[0.15em] text-slate-600">
               REPUBLIC OF THE PHILIPPINES
             </p>
 
-            <h1 className="text-2xl font-black text-emerald-900 mt-1">
+            <h1 className="text-lg font-black text-emerald-900 mt-0.5">
               BARANGAY TANKULAN
             </h1>
 
-            <p className="text-sm font-bold text-slate-700">
+            <p className="text-xs font-bold text-slate-700 mt-0.5">
               OFFICIAL WASTE REPORT
             </p>
 
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-[9px] text-slate-500 mt-0.5">
               Generated{" "}
               {new Date().toLocaleDateString(
                 "en-US",
                 {
-                  month: "long",
+                  month: "short",
                   day: "numeric",
                   year: "numeric",
                 }
@@ -1039,17 +1039,17 @@ export default function Reports() {
                 </div>
               </div>
 
-              <div className="p-6">
-                <div className="hidden print:block text-center mb-6">
-                  <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">
+              <div className="p-6 print:p-2">
+                <div className="hidden print:block text-center mb-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-emerald-700">
                     Barangay Tankulan
                   </p>
 
-                  <h2 className="text-2xl font-black text-slate-900 mt-1">
+                  <h2 className="text-lg font-black text-slate-900 mt-0.5">
                     Official Waste Reports
                   </h2>
 
-                  <p className="text-xs font-bold text-slate-500 mt-1">
+                  <p className="text-[9px] font-bold text-slate-500 mt-0.5">
                     {reportTimeframe ===
                     "today"
                       ? "Today's Waste Reports"
@@ -1066,46 +1066,46 @@ export default function Reports() {
                   </p>
                 </div>
 
-                {loading ? (
-                  <div className="py-16 text-center text-sm font-semibold text-slate-400">
-                    Loading waste reports...
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+{loading ? (
+                    <div className="py-8 text-center text-sm font-semibold text-slate-400 print:py-4 print:text-xs">
+                      Loading waste reports...
+                    </div>
+                  ) : (
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl print:rounded-none print:border-0">
                     <table className="w-full border-collapse text-left">
                       <thead>
-                        <tr className="bg-emerald-800 text-white text-[11px] font-black uppercase tracking-wide">
-                          <th className="px-4 py-3">
+                        <tr className="bg-emerald-800 text-white text-[9px] font-black uppercase tracking-wide print:bg-emerald-900 print:-webkit-print-color-adjust-exact print:print-color-adjust-exact">
+                          <th className="px-2 py-1.5 print:px-1 print:py-1">
                             #
                           </th>
 
-                          <th className="px-4 py-3">
+                          <th className="px-2 py-1.5 print:px-1 print:py-1">
                             Site Name / Location
                           </th>
 
-                          <th className="px-4 py-3">
+                          <th className="px-2 py-1.5 print:px-1 print:py-1">
                             Reporter
                           </th>
 
-                          <th className="px-4 py-3">
+                          <th className="px-2 py-1.5 print:px-1 print:py-1">
                             Waste Category
                           </th>
 
-                          <th className="px-4 py-3 text-center">
+                          <th className="px-2 py-1.5 text-center print:px-1 print:py-1">
                             Status
                           </th>
 
-                          <th className="px-4 py-3">
+                          <th className="px-2 py-1.5 print:px-1 print:py-1">
                             Date / Time
                           </th>
 
-                          <th className="px-4 py-3 text-right print:hidden">
+                          <th className="px-2 py-1.5 text-right print:hidden">
                             Action
                           </th>
                         </tr>
                       </thead>
 
-                      <tbody className="divide-y divide-slate-200">
+                      <tbody className="divide-y divide-slate-200 print:divide-slate-300">
                         {filteredReports.length >
                         0 ? (
                           filteredReports.map(
@@ -1124,33 +1124,33 @@ export default function Reports() {
                                   key={
                                     report.id
                                   }
-                                  className="hover:bg-slate-50"
+                                  className="hover:bg-slate-50 print:hover:bg-transparent"
                                 >
-                                  <td className="px-4 py-3 text-xs font-black text-slate-500">
+                                  <td className="px-4 py-3 text-xs font-black text-slate-500 print:px-2 print:py-1.5 print:text-[9px]">
                                     {index +
                                       1}
                                   </td>
 
-                                  <td className="px-4 py-3 text-xs font-extrabold text-slate-900">
+                                  <td className="px-4 py-3 text-xs font-extrabold text-slate-900 print:px-2 print:py-1.5 print:text-[9px]">
                                     {report.location_name ||
                                       "Barangay Tankulan, Manolo Fortich, Bukidnon"}
                                   </td>
 
-                                  <td className="px-4 py-3 text-xs font-semibold text-slate-700">
+                                  <td className="px-4 py-3 text-xs font-semibold text-slate-700 print:px-2 print:py-1.5 print:text-[9px]">
                                     {reporter}
                                   </td>
 
-                                  <td className="px-4 py-3 text-xs font-semibold text-slate-800">
+                                  <td className="px-4 py-3 text-xs font-semibold text-slate-800 print:px-2 print:py-1.5 print:text-[9px]">
                                     {report.waste_type ||
                                       report.title ||
                                       "Uncategorized"}
                                   </td>
 
-                                  <td className="px-4 py-3 text-center">
+                                  <td className="px-4 py-3 text-center print:px-2 print:py-1.5">
                                     <span
                                       className={`inline-flex px-2.5 py-1 rounded-full border text-[10px] font-black ${getStatusBadgeClass(
                                         report.status
-                                      )}`}
+                                      )} print:text-[8px] print:px-1.5 print:py-0.5`}
                                     >
                                       {normalizeStatus(
                                         report.status
@@ -1158,7 +1158,7 @@ export default function Reports() {
                                     </span>
                                   </td>
 
-                                  <td className="px-4 py-3 text-[11px] font-mono text-slate-600">
+                                  <td className="px-4 py-3 text-[11px] font-mono text-slate-600 print:px-2 print:py-1.5 print:text-[9px]">
                                     {formatDateTime(
                                       report.created_at
                                     )}
@@ -1185,7 +1185,7 @@ export default function Reports() {
                           <tr>
                             <td
                               colSpan={7}
-                              className="px-4 py-16 text-center text-sm font-semibold text-slate-400"
+                              className="px-4 py-8 text-center text-sm font-semibold text-slate-400 print:py-4 print:text-xs"
                             >
                               {getEmptyMessage()}
                             </td>
@@ -1194,12 +1194,12 @@ export default function Reports() {
                       </tbody>
 
                       <tfoot>
-                        <tr className="bg-slate-50">
+                        <tr className="bg-slate-50 print:bg-transparent">
                           <td
                             colSpan={7}
-                            className="px-4 py-4"
+                            className="px-4 py-3 print:px-2 print:py-1.5"
                           >
-                            <div className="flex flex-wrap justify-between gap-3 text-xs font-black text-slate-700">
+                            <div className="flex flex-wrap justify-between gap-3 text-xs font-black text-slate-700 print:text-[9px]">
                               <span>
                                 Total Matching Reports:
                               </span>
@@ -1217,21 +1217,21 @@ export default function Reports() {
                   </div>
                 )}
 
-                <div className="hidden print:grid grid-cols-2 gap-12 mt-16 text-xs">
-                  <div>
-                    <div className="border-b border-slate-400 h-10" />
-                    <p className="mt-2 font-bold text-slate-700">
-                      Prepared By
-                    </p>
-                  </div>
+<div className="hidden print:grid grid-cols-2 gap-8 mt-8 text-[9px]">
+                    <div>
+                      <div className="border-b border-slate-400 h-6" />
+                      <p className="mt-1 font-bold text-slate-700">
+                        Prepared By
+                      </p>
+                    </div>
 
-                  <div>
-                    <div className="border-b border-slate-400 h-10" />
-                    <p className="mt-2 font-bold text-slate-700">
-                      Reviewed By
-                    </p>
+                    <div>
+                      <div className="border-b border-slate-400 h-6" />
+                      <p className="mt-1 font-bold text-slate-700">
+                        Reviewed By
+                      </p>
+                    </div>
                   </div>
-                </div>
               </div>
             </section>
           )}
