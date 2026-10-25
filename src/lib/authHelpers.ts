@@ -64,14 +64,7 @@ export async function getEmailByUsername(
     );
 
   if (error) {
-    console.error(
-      "Username lookup failed:",
-      error
-    );
-
-    throw new Error(
-      "Unable to find this username."
-    );
+    throw error;
   }
 
   if (!data) {
@@ -178,9 +171,12 @@ export async function ensureResidentProfile(
         contact_number:
           contactNumber || null,
         role: "resident",
-        profile_completed: false,
-        terms_accepted: false,
-        terms_accepted_at: null,
+        profile_completed:
+          false,
+        terms_accepted:
+          false,
+        terms_accepted_at:
+          null,
       });
 
     if (insertError) {
@@ -426,46 +422,32 @@ export async function acceptResidentTerms() {
     );
   }
 
-  const hasUsername =
-    Boolean(
-      profile.username?.trim()
-    );
-
-  const hasName =
-    Boolean(
-      profile.full_name?.trim()
-    );
-
-  const hasEmail =
-    Boolean(
-      profile.email?.trim()
-    );
-
-  const hasAddress =
-    Boolean(
-      profile.address?.trim()
-    );
-
   const cleanContact =
     (
       profile.contact_number ||
       ""
     ).replace(/\D/g, "");
 
-  const hasContact =
+  const complete =
+    Boolean(
+      profile.username?.trim()
+    ) &&
+    Boolean(
+      profile.full_name?.trim()
+    ) &&
+    Boolean(
+      profile.email?.trim()
+    ) &&
+    Boolean(
+      profile.address?.trim()
+    ) &&
     cleanContact.length ===
       11 &&
     cleanContact.startsWith(
       "09"
     );
 
-  if (
-    !hasUsername ||
-    !hasName ||
-    !hasEmail ||
-    !hasAddress ||
-    !hasContact
-  ) {
+  if (!complete) {
     throw new Error(
       "Please complete all required profile information before continuing."
     );
@@ -513,6 +495,9 @@ export async function completeGoogleResidentProfile(
       ""
     );
 
+  const cleanAddress =
+    fullAddress.trim();
+
   if (
     !/^[a-z0-9_]{3,20}$/.test(
       cleanUsername
@@ -525,38 +510,55 @@ export async function completeGoogleResidentProfile(
 
   if (
     cleanContact.length !== 11 ||
-    !cleanContact.startsWith(
-      "09"
-    )
+    !cleanContact.startsWith("09")
   ) {
     throw new Error(
       "Please enter a valid 11-digit contact number starting with 09."
     );
   }
 
-  if (!fullAddress.trim()) {
+  if (!cleanAddress) {
     throw new Error(
       "Please select your area."
     );
   }
 
+  const metadata =
+    user.user_metadata || {};
+
+  const fullName =
+    metadata.full_name ||
+    metadata.name ||
+    "";
+
+  const email =
+    user.email || "";
+
+  if (!email) {
+    throw new Error(
+      "Your Google account does not contain an email address."
+    );
+  }
+
   const {
-    data: profile,
-    error: profileError,
+    data: existingProfile,
+    error: lookupError,
   } = await supabase
     .from("profiles")
     .select(
-      "id, username, role"
+      "id, role, username"
     )
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profileError) {
-    throw profileError;
+  if (lookupError) {
+    throw new Error(
+      `Profile lookup failed: ${lookupError.message}`
+    );
   }
 
   if (
-    profile?.role ===
+    existingProfile?.role ===
     "admin"
   ) {
     throw new Error(
@@ -565,7 +567,7 @@ export async function completeGoogleResidentProfile(
   }
 
   const currentUsername =
-    profile?.username
+    existingProfile?.username
       ?.trim()
       .toLowerCase() ||
     "";
@@ -586,86 +588,67 @@ export async function completeGoogleResidentProfile(
     }
   }
 
-  const metadata =
-    user.user_metadata || {};
+  const profileData = {
+    id: user.id,
+    full_name:
+      fullName,
+    username:
+      cleanUsername,
+    email,
+    address:
+      cleanAddress,
+    contact_number:
+      cleanContact,
+    role:
+      "resident",
+    profile_completed:
+      true,
+    terms_accepted:
+      true,
+    terms_accepted_at:
+      new Date().toISOString(),
+  };
 
-  const fullName =
-    metadata.full_name ||
-    metadata.name ||
-    "";
+  const {
+    data: savedProfile,
+    error: saveError,
+  } = await supabase
+    .from("profiles")
+    .upsert(
+      profileData,
+      {
+        onConflict: "id",
+      }
+    )
+    .select(
+      "id, username, contact_number, address, profile_completed, terms_accepted"
+    )
+    .single();
 
-  const email =
-    user.email || "";
-
-  if (!email) {
+  if (saveError) {
     throw new Error(
-      "Your Google account does not contain a valid email address."
+      `Profile save failed: ${saveError.message}`
     );
   }
 
-  if (profile) {
-    const {
-      error: updateError,
-    } = await supabase
-      .from("profiles")
-      .update({
-        full_name:
-          fullName,
-        username:
-          cleanUsername,
-        email,
-        address:
-          fullAddress.trim(),
-        contact_number:
-          cleanContact,
-        role:
-          "resident",
-        profile_completed:
-          true,
-        terms_accepted:
-          true,
-        terms_accepted_at:
-          new Date().toISOString(),
-      })
-      .eq("id", user.id);
-
-    if (updateError) {
-      throw updateError;
-    }
-
-    return true;
+  if (!savedProfile) {
+    throw new Error(
+      "CERMS could not verify your saved profile."
+    );
   }
 
-  const {
-    error: insertError,
-  } = await supabase
-    .from("profiles")
-    .insert({
-      id: user.id,
-      full_name:
-        fullName,
-      username:
-        cleanUsername,
-      email,
-      address:
-        fullAddress.trim(),
-      contact_number:
-        cleanContact,
-      role:
-        "resident",
-      profile_completed:
-        true,
-      terms_accepted:
-        true,
-      terms_accepted_at:
-        new Date().toISOString(),
-    });
-
-  if (insertError) {
-    throw insertError;
+  if (
+    savedProfile.profile_completed !==
+      true ||
+    savedProfile.terms_accepted !==
+      true
+  ) {
+    throw new Error(
+      "Your profile was saved but registration was not completed."
+    );
   }
 
-  return true;
+  return savedProfile;
 }
 
 export async function getAccountStatus() {

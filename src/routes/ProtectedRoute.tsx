@@ -27,18 +27,9 @@ export default function ProtectedRoute() {
 
     async function checkAccess() {
       try {
-        if (active) {
-          setAccessState(
-            "loading"
-          );
-        }
-
         const {
-          data: {
-            session,
-          },
-          error:
-            sessionError,
+          data: { session },
+          error: sessionError,
         } =
           await supabase.auth.getSession();
 
@@ -57,36 +48,16 @@ export default function ProtectedRoute() {
         }
 
         const {
-          data: { user },
-          error: userError,
-        } =
-          await supabase.auth.getUser();
-
-        if (userError) {
-          throw userError;
-        }
-
-        if (!user) {
-          if (active) {
-            setAccessState(
-              "login"
-            );
-          }
-
-          return;
-        }
-
-        const {
           data: profile,
           error: profileError,
         } = await supabase
           .from("profiles")
           .select(
-            "role, profile_completed, terms_accepted"
+            "role, username, contact_number, address, profile_completed, terms_accepted"
           )
           .eq(
             "id",
-            user.id
+            session.user.id
           )
           .maybeSingle();
 
@@ -119,11 +90,26 @@ export default function ProtectedRoute() {
           return;
         }
 
+        const hasRequiredDetails =
+          Boolean(
+            profile.username
+              ?.trim()
+          ) &&
+          Boolean(
+            profile.contact_number
+              ?.trim()
+          ) &&
+          Boolean(
+            profile.address
+              ?.trim()
+          );
+
         const complete =
           profile.profile_completed ===
             true &&
           profile.terms_accepted ===
-            true;
+            true &&
+          hasRequiredDetails;
 
         if (!complete) {
           if (active) {

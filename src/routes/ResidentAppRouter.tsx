@@ -1,9 +1,13 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import {
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 
 import Login from "../pages/resident/Login";
 import Register from "../pages/auth/Register";
-import CompleteProfile from "../pages/auth/CompleteProfile";
 import AuthCallback from "../pages/auth/AuthCallBack";
+import CompleteProfile from "../pages/auth/CompleteProfile";
 
 import ResidentLayout from "../pages/resident/Layout";
 import ResidentDashboard from "../pages/resident/Dashboard";
@@ -42,16 +46,24 @@ export default function UserAppRouter() {
       />
 
       <Route
-        path="/complete-profile"
-        element={<CompleteProfile />}
+        path="/auth/callback"
+        element={
+          <AuthCallback />
+        }
       />
 
       <Route
-        path="/auth/callback"
-        element={<AuthCallback />}
+        path="/complete-profile"
+        element={
+          <CompleteProfile />
+        }
       />
 
-      <Route element={<ProtectedRoute />}>
+      <Route
+        element={
+          <ProtectedRoute />
+        }
+      >
         <Route
           element={
             <ResidentLayout />

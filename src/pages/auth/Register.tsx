@@ -476,6 +476,14 @@ export default function Register() {
         result.user
       );
 
+      await supabase
+        .from("profiles")
+        .update({
+          profile_completed: true,
+          terms_accepted: true,
+        })
+        .eq("id", result.user.id);
+
       setRegistrationComplete(
         true
       );

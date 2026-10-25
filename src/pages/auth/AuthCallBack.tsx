@@ -26,13 +26,11 @@ export default function AuthCallback() {
     async function waitForSession() {
       for (
         let attempt = 0;
-        attempt < 8;
+        attempt < 10;
         attempt++
       ) {
         const {
-          data: {
-            session,
-          },
+          data: { session },
           error,
         } =
           await supabase.auth.getSession();
@@ -49,7 +47,7 @@ export default function AuthCallback() {
           (resolve) =>
             setTimeout(
               resolve,
-              400
+              300
             )
         );
       }
@@ -61,35 +59,12 @@ export default function AuthCallback() {
       try {
         setFailed(false);
 
-        setMessage(
-          "Completing your Google sign-in..."
-        );
-
-        const sessionUser =
+        const user =
           await waitForSession();
 
-        if (!sessionUser) {
+        if (!user) {
           throw new Error(
             "Google sign-in session could not be found."
-          );
-        }
-
-        const {
-          data: { user },
-          error: userError,
-        } =
-          await supabase.auth.getUser();
-
-        if (userError) {
-          throw userError;
-        }
-
-        const currentUser =
-          user || sessionUser;
-
-        if (!currentUser) {
-          throw new Error(
-            "Google sign-in could not be completed."
           );
         }
 
@@ -103,7 +78,7 @@ export default function AuthCallback() {
           )
           .eq(
             "id",
-            currentUser.id
+            user.id
           )
           .maybeSingle();
 
@@ -126,22 +101,36 @@ export default function AuthCallback() {
           return;
         }
 
-        const complete =
-          profile?.profile_completed ===
-            true &&
-          profile?.terms_accepted ===
-            true &&
+        const hasUsername =
           Boolean(
             profile?.username
-          ) &&
-          Boolean(
-            profile?.contact_number
-          ) &&
-          Boolean(
-            profile?.address
+              ?.trim()
           );
 
-        if (complete) {
+        const hasContact =
+          Boolean(
+            profile?.contact_number
+              ?.trim()
+          );
+
+        const hasAddress =
+          Boolean(
+            profile?.address
+              ?.trim()
+          );
+
+        const completed =
+          profile
+            ?.profile_completed ===
+            true &&
+          profile
+            ?.terms_accepted ===
+            true &&
+          hasUsername &&
+          hasContact &&
+          hasAddress;
+
+        if (completed) {
           navigate(
             "/dashboard",
             {
@@ -203,7 +192,7 @@ export default function AuthCallback() {
         </h2>
 
         <p
-          className={`mt-3 text-sm leading-relaxed ${
+          className={`mt-3 text-sm ${
             failed
               ? "text-red-600"
               : "text-slate-500"
@@ -223,7 +212,7 @@ export default function AuthCallback() {
                 }
               )
             }
-            className="mt-6 w-full rounded-xl bg-green-700 py-3 text-sm font-semibold text-white transition hover:bg-green-800"
+            className="mt-6 w-full rounded-xl bg-green-700 py-3 font-semibold text-white hover:bg-green-800"
           >
             Back to Login
           </button>
