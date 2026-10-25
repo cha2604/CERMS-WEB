@@ -13,7 +13,7 @@ interface ReportItem {
   created_at: string;
 }
 
-type ReportFilter = "All" | "Pending" | "On-going" | "Rejected";
+type ReportFilter = "All" | "Pending" | "On-going";
 
 export default function MyReports() {
   const navigate = useNavigate();
@@ -36,7 +36,7 @@ export default function MyReports() {
             .from("reports")
             .select("*")
             .eq("user_id", user.id)
-            .neq("status", "Resolved")
+            .not("status", "in", '("Resolved","Rejected")')
             .order("created_at", { ascending: false });
 
           if (data) {
@@ -133,18 +133,6 @@ export default function MyReports() {
             }`}
           >
             On-going
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFilter("Rejected")}
-            className={`px-3.5 py-1.5 rounded-lg transition-all ${
-              filter === "Rejected"
-                ? "bg-emerald-800 text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            Rejected
           </button>
         </div>
       </div>

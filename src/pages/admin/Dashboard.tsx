@@ -8,9 +8,9 @@ import {
   FiFileText,
   FiMapPin,
   FiRefreshCw,
-  FiUserPlus,
   FiUsers,
 } from "react-icons/fi";
+import OrgChart from "../../components/admin/OrgChart";
 import { supabase } from "../../lib/supabase";
 
 interface ReportRecord {
@@ -28,6 +28,8 @@ interface ReportRecord {
   profiles?: {
     full_name?: string | null;
   } | null;
+  team_name: string | null;
+  personnel_name: string | null;
 }
 
 interface ResidentAccount {
@@ -50,11 +52,11 @@ export default function AdminDashboard() {
   const [pendingReports, setPendingReports] = useState(0);
   const [ongoingReports, setOngoingReports] = useState(0);
   const [resolvedReports, setResolvedReports] = useState(0);
-  const [pendingApprovals, setPendingApprovals] = useState(0);
   const [totalWasteWeight, setTotalWasteWeight] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showOrgChart, setShowOrgChart] = useState(false);
 
   useEffect(() => {
     loadDashboard();
@@ -72,7 +74,6 @@ export default function AdminDashboard() {
 
       const [
         reportsResponse,
-        residentCountResponse,
         recentReportsResponse,
         recentResidentsResponse,
         wasteWeightResponse,
@@ -85,17 +86,9 @@ export default function AdminDashboard() {
           }),
 
         supabase
-          .from("resident_approvals")
-          .select("user_id", {
-            count: "exact",
-            head: true,
-          })
-          .eq("status", "pending"),
-
-        supabase
           .from("reports")
           .select(
-            "id, title, waste_type, location_name, status, created_at, profiles(full_name)"
+            "id, title, waste_type, location_name, status, created_at, profiles(full_name), report_assignments(team_name, personnel_name)"
           )
           .order("created_at", { ascending: false })
           .limit(6),
@@ -118,10 +111,6 @@ export default function AdminDashboard() {
         throw reportsResponse.error;
       }
 
-      if (residentCountResponse.error) {
-        throw residentCountResponse.error;
-      }
-
       if (recentReportsResponse.error) {
         throw recentReportsResponse.error;
       }
@@ -138,7 +127,28 @@ export default function AdminDashboard() {
         (reportsResponse.data || []) as ReportRecord[];
 
       const recentReportRows =
-        (recentReportsResponse.data || []) as ReportRecord[];
+        (recentReportsResponse.data || []) as {
+          id: string;
+          title: string | null;
+          waste_type: string | null;
+          location_name: string | null;
+          status: string;
+          created_at: string;
+          profiles?: { full_name?: string | null } | null;
+          report_assignments?: Array<{
+            team_name: string | null;
+            personnel_name: string | null;
+          }> | null;
+        }[];
+
+      const mappedReports = recentReportRows.map((report) => {
+        const assignment = report.report_assignments?.[0];
+        return {
+          ...report,
+          team_name: assignment?.team_name || null,
+          personnel_name: assignment?.personnel_name || null,
+        };
+      }) as ReportRecord[];
 
       const residentRows =
         (recentResidentsResponse.data ||
@@ -155,12 +165,9 @@ export default function AdminDashboard() {
         0
       );
 
-      setReports(recentReportRows);
+      setReports(mappedReports);
       setRecentResidents(residentRows);
       setTotalReports(reportsResponse.count || 0);
-      setPendingApprovals(
-        residentCountResponse.count || 0
-      );
 
       setPendingReports(
         reportRows.filter(
@@ -292,20 +299,6 @@ export default function AdminDashboard() {
 
           <button
             type="button"
-            onClick={() => navigate("/approval")}
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all flex items-center justify-between"
-          >
-            <span>Approval</span>
-
-            {pendingApprovals > 0 && (
-              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-black text-amber-800">
-                {pendingApprovals}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
             onClick={() => navigate("/waste-weighing")}
             className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
@@ -425,20 +418,6 @@ export default function AdminDashboard() {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="h-11 w-11 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
-                <FiUsers size={20} />
-              </div>
-
-              <p className="mt-4 text-sm font-bold text-slate-500">
-                Pending Approvals
-              </p>
-
-              <p className="mt-1 text-3xl font-black text-slate-900">
-                {loading ? "—" : pendingApprovals}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="h-11 w-11 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center">
                 <FiBarChart2 size={20} />
               </div>
@@ -495,6 +474,10 @@ export default function AdminDashboard() {
                       </th>
 
                       <th className="px-5 py-3 text-left text-xs font-black uppercase tracking-wide text-slate-500">
+                        Person in Charge
+                      </th>
+
+                      <th className="px-5 py-3 text-left text-xs font-black uppercase tracking-wide text-slate-500">
                         Date
                       </th>
                     </tr>
@@ -504,7 +487,7 @@ export default function AdminDashboard() {
                     {loading ? (
                       <tr>
                         <td
-                          colSpan={4}
+                          colSpan={5}
                           className="px-5 py-10 text-center text-sm font-semibold text-slate-500"
                         >
                           Loading recent reports...
@@ -513,7 +496,7 @@ export default function AdminDashboard() {
                     ) : reports.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={4}
+                          colSpan={5}
                           className="px-5 py-10 text-center text-sm font-semibold text-slate-500"
                         >
                           No reports available.
@@ -523,7 +506,8 @@ export default function AdminDashboard() {
                       reports.map((report) => (
                         <tr
                           key={report.id}
-                          className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50"
+                          className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50 cursor-pointer"
+                          onClick={() => navigate(`/report/${report.id}`)}
                         >
                           <td className="px-5 py-4">
                             <p className="font-black text-slate-900">
@@ -551,6 +535,26 @@ export default function AdminDashboard() {
                             >
                               {report.status}
                             </span>
+                          </td>
+
+                          <td className="px-5 py-4 text-sm">
+                            {report.team_name || report.personnel_name ? (
+                              <>
+                                <div className="font-semibold text-slate-700">
+                                  {report.personnel_name ||
+                                    "Unassigned personnel"}
+                                </div>
+                                {report.team_name && (
+                                  <p className="text-xs text-slate-500 mt-0.5">
+                                    {report.team_name}
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-xs text-slate-400 italic">
+                                Not assigned
+                              </span>
+                            )}
                           </td>
 
                           <td className="px-5 py-4 text-sm font-semibold text-slate-600 whitespace-nowrap">
@@ -584,34 +588,6 @@ export default function AdminDashboard() {
               </div>
 
               <div className="grid gap-3">
-                <button
-                  type="button"
-                  onClick={() => navigate("/approval")}
-                  className="w-full flex items-center justify-between rounded-xl border border-slate-200 px-4 py-4 text-left hover:border-emerald-300 hover:bg-emerald-50 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <FiUserPlus
-                      size={18}
-                      className="text-emerald-700"
-                    />
-
-                    <div>
-                      <p className="font-black text-slate-900">
-                        Review Approvals
-                      </p>
-
-                      <p className="text-xs font-medium text-slate-500">
-                        Manage resident verification.
-                      </p>
-                    </div>
-                  </div>
-
-                  <FiArrowRight
-                    size={17}
-                    className="text-slate-400"
-                  />
-                </button>
-
                 <button
                   type="button"
                   onClick={() => navigate("/reports")}
@@ -836,6 +812,19 @@ export default function AdminDashboard() {
             </div>
           </section>
         </div>
+
+        <div className="mt-6 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setShowOrgChart((prev) => !prev)}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition-all"
+          >
+            {showOrgChart ? "Hide" : "View"} Barangay Organizational Chart
+            <FiUsers size={16} />
+          </button>
+        </div>
+
+        {showOrgChart && <OrgChart />}
       </main>
     </div>
   );

@@ -1,169 +1,205 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 import {
   Navigate,
   Outlet,
-  useLocation,
 } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { getAccountStatus } from "../lib/authHelpers";
+
+type AccessState =
+  | "loading"
+  | "login"
+  | "complete-profile"
+  | "allowed";
 
 export default function ProtectedRoute() {
-  const location = useLocation();
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [authenticated, setAuthenticated] =
-    useState(false);
-
-  const [approvalStatus, setApprovalStatus] =
-    useState<string | null>(null);
+  const [
+    accessState,
+    setAccessState,
+  ] = useState<AccessState>(
+    "loading"
+  );
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
     async function checkAccess() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        if (active) {
+          setAccessState(
+            "loading"
+          );
+        }
 
-        if (!user) {
-          if (mounted) {
-            setAuthenticated(false);
-            setApprovalStatus(null);
-            setLoading(false);
+        const {
+          data: {
+            session,
+          },
+          error:
+            sessionError,
+        } =
+          await supabase.auth.getSession();
+
+        if (sessionError) {
+          throw sessionError;
+        }
+
+        if (!session?.user) {
+          if (active) {
+            setAccessState(
+              "login"
+            );
           }
 
           return;
         }
 
-        const status =
-          await getAccountStatus();
+        const {
+          data: { user },
+          error: userError,
+        } =
+          await supabase.auth.getUser();
 
-        if (!mounted) {
+        if (userError) {
+          throw userError;
+        }
+
+        if (!user) {
+          if (active) {
+            setAccessState(
+              "login"
+            );
+          }
+
           return;
         }
 
-        if (status.role === "admin") {
-          setAuthenticated(false);
-          setApprovalStatus("admin");
-          setLoading(false);
+        const {
+          data: profile,
+          error: profileError,
+        } = await supabase
+          .from("profiles")
+          .select(
+            "role, profile_completed, terms_accepted"
+          )
+          .eq(
+            "id",
+            user.id
+          )
+          .maybeSingle();
+
+        if (profileError) {
+          throw profileError;
+        }
+
+        if (
+          profile?.role ===
+          "admin"
+        ) {
+          await supabase.auth.signOut();
+
+          if (active) {
+            setAccessState(
+              "login"
+            );
+          }
+
           return;
         }
 
-        setAuthenticated(true);
-        setApprovalStatus(
-          status.approvalStatus
-        );
-        setLoading(false);
+        if (!profile) {
+          if (active) {
+            setAccessState(
+              "complete-profile"
+            );
+          }
+
+          return;
+        }
+
+        const complete =
+          profile.profile_completed ===
+            true &&
+          profile.terms_accepted ===
+            true;
+
+        if (!complete) {
+          if (active) {
+            setAccessState(
+              "complete-profile"
+            );
+          }
+
+          return;
+        }
+
+        if (active) {
+          setAccessState(
+            "allowed"
+          );
+        }
       } catch (error) {
         console.error(
-          "Failed to verify resident session:",
+          "Route protection failed:",
           error
         );
 
-        if (mounted) {
-          setAuthenticated(false);
-          setApprovalStatus(null);
-          setLoading(false);
+        if (active) {
+          setAccessState(
+            "login"
+          );
         }
       }
     }
 
-    checkAccess();
+    void checkAccess();
 
     return () => {
-      mounted = false;
+      active = false;
     };
-  }, [location.pathname]);
+  }, []);
 
-  if (loading) {
+  if (
+    accessState ===
+    "loading"
+  ) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="rounded-2xl bg-white border border-slate-200 px-6 py-5 shadow-sm">
-          <p className="text-sm font-bold text-slate-600">
-            Verifying your account...
+      <div className="min-h-screen bg-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-green-100 border-t-green-700" />
+
+          <p className="mt-4 text-sm text-slate-500">
+            Checking your account...
           </p>
         </div>
       </div>
     );
   }
 
-  if (!authenticated) {
-    if (
-      approvalStatus === "admin"
-    ) {
-      return (
-        <Navigate
-          to="/login"
-          replace
-        />
-      );
-    }
-
-    if (
-      approvalStatus ===
-      "pending"
-    ) {
-      return (
-        <Navigate
-          to="/approval-pending"
-          replace
-        />
-      );
-    }
-
-    if (
-      approvalStatus ===
-      "rejected"
-    ) {
-      return (
-        <Navigate
-          to="/approval-rejected"
-          replace
-        />
-      );
-    }
-
+  if (
+    accessState ===
+    "login"
+  ) {
     return (
       <Navigate
         to="/login"
         replace
-        state={{
-          from: location.pathname,
-        }}
       />
     );
   }
 
   if (
-    approvalStatus !==
-    "approved"
+    accessState ===
+    "complete-profile"
   ) {
-    if (
-      approvalStatus ===
-      "pending"
-    ) {
-      return (
-        <Navigate
-          to="/approval-pending"
-          replace
-        />
-      );
-    }
-
-    if (
-      approvalStatus ===
-      "rejected"
-    ) {
-      return (
-        <Navigate
-          to="/approval-rejected"
-          replace
-        />
-      );
-    }
+    return (
+      <Navigate
+        to="/complete-profile"
+        replace
+      />
+    );
   }
 
   return <Outlet />;

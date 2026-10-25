@@ -32,7 +32,6 @@ export async function updateProfile(
       full_name: updates.full_name,
       contact_number: updates.contact_number,
       address: updates.address,
-      updated_at: new Date().toISOString(),
     })
     .eq("id", userId);
 

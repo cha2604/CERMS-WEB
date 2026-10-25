@@ -1,9 +1,7 @@
-import { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   FiArchive,
   FiBarChart2,
-  FiCheckCircle,
   FiFileText,
   FiLogOut,
   FiMapPin,
@@ -14,47 +12,6 @@ import { supabase } from "../../lib/supabase";
 export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-
-  const [pendingApprovals, setPendingApprovals] =
-    useState(0);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function loadPendingApprovals() {
-      try {
-        const { count, error } =
-          await supabase
-            .from("resident_approvals")
-            .select("user_id", {
-              count: "exact",
-              head: true,
-            })
-            .eq("status", "pending");
-
-        if (!error && mounted) {
-          setPendingApprovals(count || 0);
-        }
-      } catch (error) {
-        console.error(
-          "Failed to load pending approvals:",
-          error
-        );
-      }
-    }
-
-    loadPendingApprovals();
-
-    const interval = window.setInterval(
-      loadPendingApprovals,
-      30000
-    );
-
-    return () => {
-      mounted = false;
-      window.clearInterval(interval);
-    };
-  }, []);
 
   const isActive = (
     path: string
@@ -170,35 +127,6 @@ export default function AdminLayout() {
           >
             <FiUsers size={16} />
             Accounts
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              navigate("/approval")
-            }
-            className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center justify-between ${
-              isActive("/approval")
-                ? "bg-emerald-800 text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            <span className="flex items-center gap-3">
-              <FiCheckCircle size={16} />
-              Approval
-            </span>
-
-            {pendingApprovals > 0 && (
-              <span
-                className={`inline-flex min-w-5 h-5 items-center justify-center rounded-full px-1.5 text-[10px] font-black ${
-                  isActive("/approval")
-                    ? "bg-amber-100 text-amber-800"
-                    : "bg-amber-100 text-amber-800"
-                }`}
-              >
-                {pendingApprovals}
-              </span>
-            )}
           </button>
 
           <button

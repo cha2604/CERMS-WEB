@@ -1,242 +1,233 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
-import { getAccountStatus } from "../../lib/authHelpers";
 
 export default function AuthCallback() {
   const navigate = useNavigate();
-  const [errorMessage, setErrorMessage] =
-    useState("");
+
+  const [
+    message,
+    setMessage,
+  ] = useState(
+    "Completing your Google sign-in..."
+  );
+
+  const [
+    failed,
+    setFailed,
+  ] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
-    let timeoutId: number | undefined;
+    let active = true;
 
-    async function finishLogin() {
-      try {
+    async function waitForSession() {
+      for (
+        let attempt = 0;
+        attempt < 8;
+        attempt++
+      ) {
         const {
-          data: { session },
-        } = await supabase.auth.getSession();
+          data: {
+            session,
+          },
+          error,
+        } =
+          await supabase.auth.getSession();
+
+        if (error) {
+          throw error;
+        }
 
         if (session?.user) {
-          await handleAuthenticatedUser(
-            session.user.id
-          );
-          return;
+          return session.user;
         }
 
-        const {
-          data: { subscription },
-        } = supabase.auth.onAuthStateChange(
-          async (event, newSession) => {
-            if (!mounted) return;
-
-            if (
-              event === "SIGNED_IN" ||
-              event === "INITIAL_SESSION"
-            ) {
-              if (newSession?.user) {
-                subscription.unsubscribe();
-
-                await handleAuthenticatedUser(
-                  newSession.user.id
-                );
-              }
-            }
-          }
+        await new Promise(
+          (resolve) =>
+            setTimeout(
+              resolve,
+              400
+            )
         );
-
-        timeoutId = window.setTimeout(() => {
-          if (mounted) {
-            subscription.unsubscribe();
-
-            setErrorMessage(
-              "Google sign-in could not be completed. Please try again."
-            );
-          }
-        }, 10000);
-      } catch (error) {
-        console.error(
-          "Google authentication failed:",
-          error
-        );
-
-        if (mounted) {
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Google sign-in failed."
-          );
-        }
       }
+
+      return null;
     }
 
-    async function handleAuthenticatedUser(
-      userId: string
-    ) {
+    async function handleCallback() {
       try {
+        setFailed(false);
+
+        setMessage(
+          "Completing your Google sign-in..."
+        );
+
+        const sessionUser =
+          await waitForSession();
+
+        if (!sessionUser) {
+          throw new Error(
+            "Google sign-in session could not be found."
+          );
+        }
+
         const {
-          data: existingProfile,
+          data: { user },
+          error: userError,
+        } =
+          await supabase.auth.getUser();
+
+        if (userError) {
+          throw userError;
+        }
+
+        const currentUser =
+          user || sessionUser;
+
+        if (!currentUser) {
+          throw new Error(
+            "Google sign-in could not be completed."
+          );
+        }
+
+        const {
+          data: profile,
           error: profileError,
         } = await supabase
           .from("profiles")
-          .select("id")
-          .eq("id", userId)
+          .select(
+            "role, username, contact_number, address, profile_completed, terms_accepted"
+          )
+          .eq(
+            "id",
+            currentUser.id
+          )
           .maybeSingle();
 
         if (profileError) {
           throw profileError;
         }
 
-        if (!existingProfile) {
-          const {
-            data: { user },
-          } =
-            await supabase.auth.getUser();
-
-          const fullName =
-            user?.user_metadata?.full_name ||
-            user?.user_metadata?.name ||
-            "";
-
-          const {
-            error: insertError,
-          } = await supabase
-            .from("profiles")
-            .insert({
-              id: userId,
-              full_name: fullName,
-              email: user?.email || null,
-              role: "resident",
-            });
-
-          if (insertError) {
-            throw insertError;
-          }
-        }
-
-        const status =
-          await getAccountStatus();
-
-        if (status.role === "admin") {
+        if (
+          profile?.role ===
+          "admin"
+        ) {
           await supabase.auth.signOut();
 
-          if (mounted) {
-            setErrorMessage(
-              "Admin accounts cannot log in through the resident portal."
-            );
-          }
+          throw new Error(
+            "Admin accounts cannot log in through the resident portal."
+          );
+        }
+
+        if (!active) {
+          return;
+        }
+
+        const complete =
+          profile?.profile_completed ===
+            true &&
+          profile?.terms_accepted ===
+            true &&
+          Boolean(
+            profile?.username
+          ) &&
+          Boolean(
+            profile?.contact_number
+          ) &&
+          Boolean(
+            profile?.address
+          );
+
+        if (complete) {
+          navigate(
+            "/dashboard",
+            {
+              replace: true,
+            }
+          );
 
           return;
         }
 
-        if (mounted) {
-          if (
-            status.approvalStatus ===
-            "pending"
-          ) {
-            navigate(
-              "/approval-pending",
-              {
-                replace: true,
-              }
-            );
-
-            return;
-          }
-
-          if (
-            status.approvalStatus ===
-            "rejected"
-          ) {
-            navigate(
-              "/approval-rejected",
-              {
-                replace: true,
-              }
-            );
-
-            return;
-          }
-
-          if (
-            status.approvalStatus !==
-            "approved"
-          ) {
-            setErrorMessage(
-              "Your account approval could not be verified. Please try again later."
-            );
-
-            return;
-          }
-
-          navigate("/dashboard", {
+        navigate(
+          "/complete-profile",
+          {
             replace: true,
-          });
-        }
+          }
+        );
       } catch (error) {
         console.error(
-          "Failed to finish Google sign-in:",
+          "Google callback failed:",
           error
         );
 
-        if (mounted) {
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Failed to complete Google sign-in."
-          );
+        if (!active) {
+          return;
         }
+
+        setFailed(true);
+
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Google sign-in failed. Please try again."
+        );
       }
     }
 
-    finishLogin();
+    void handleCallback();
 
     return () => {
-      mounted = false;
-
-      if (timeoutId) {
-        window.clearTimeout(timeoutId);
-      }
+      active = false;
     };
   }, [navigate]);
 
-  if (errorMessage) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-5">
-        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-lg">
-          <h1 className="text-xl font-black text-slate-900">
-            Google Sign-In Failed
-          </h1>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-5">
+      <div className="w-full max-w-md rounded-2xl border border-green-100 bg-white p-8 text-center shadow-xl">
+        {!failed && (
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
+            <div className="h-7 w-7 animate-spin rounded-full border-4 border-green-200 border-t-green-700" />
+          </div>
+        )}
 
-          <p className="mt-3 text-sm text-red-600">
-            {errorMessage}
-          </p>
+        <h1 className="mt-5 text-xl font-bold text-green-800">
+          CERMS
+        </h1>
 
+        <h2 className="mt-2 text-lg font-semibold text-slate-800">
+          Google Sign-In
+        </h2>
+
+        <p
+          className={`mt-3 text-sm leading-relaxed ${
+            failed
+              ? "text-red-600"
+              : "text-slate-500"
+          }`}
+        >
+          {message}
+        </p>
+
+        {failed && (
           <button
             type="button"
             onClick={() =>
-              navigate("/login", {
-                replace: true,
-              })
+              navigate(
+                "/login",
+                {
+                  replace: true,
+                }
+              )
             }
-            className="mt-6 rounded-xl bg-green-700 px-6 py-3 text-sm font-bold text-white transition hover:bg-green-800"
+            className="mt-6 w-full rounded-xl bg-green-700 py-3 text-sm font-semibold text-white transition hover:bg-green-800"
           >
             Back to Login
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-5">
-      <div className="text-center">
-        <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-green-200 border-t-green-700" />
-
-        <p className="mt-4 text-sm font-semibold text-slate-600">
-          Completing Google sign in...
-        </p>
+        )}
       </div>
     </div>
   );

@@ -2,8 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import Login from "../pages/resident/Login";
 import Register from "../pages/auth/Register";
-import ApprovalPending from "../pages/resident/ApprovalPending";
-import ApprovalRejected from "../pages/resident/ApprovalRejected";
+import CompleteProfile from "../pages/auth/CompleteProfile";
 import AuthCallback from "../pages/auth/AuthCallBack";
 
 import ResidentLayout from "../pages/resident/Layout";
@@ -43,13 +42,8 @@ export default function UserAppRouter() {
       />
 
       <Route
-        path="/approval-pending"
-        element={<ApprovalPending />}
-      />
-
-      <Route
-        path="/approval-rejected"
-        element={<ApprovalRejected />}
+        path="/complete-profile"
+        element={<CompleteProfile />}
       />
 
       <Route

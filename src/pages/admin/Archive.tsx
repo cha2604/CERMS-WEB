@@ -400,16 +400,6 @@ export default function Archive() {
 
           <button
             type="button"
-            onClick={() =>
-              navigate("/approval")
-            }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
-          >
-            Approval
-          </button>
-
-          <button
-            type="button"
             className="w-full text-left px-4 py-3 rounded-xl bg-emerald-800 text-white shadow-sm transition-all cursor-pointer"
           >
             Archive

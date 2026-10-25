@@ -14,7 +14,6 @@ import AdminReports from "../pages/admin/Reports";
 import AdminMap from "../pages/admin/Map";
 import AdminReportDetails from "../pages/admin/ReportDetails";
 import Users from "../pages/admin/Users";
-import Approval from "../pages/admin/Approval";
 import Archive from "../pages/admin/Archive";
 import WasteWeighing from "../pages/admin/WasteWeighing";
 import { supabase } from "../lib/supabase";
@@ -162,11 +161,6 @@ export default function AdminAppRouter() {
           <Route
             path="/users"
             element={<Users />}
-          />
-
-          <Route
-            path="/approval"
-            element={<Approval />}
           />
 
           <Route

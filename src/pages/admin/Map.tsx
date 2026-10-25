@@ -157,13 +157,6 @@ export default function AdminMap() {
       );
     });
 
-  const pendingCount =
-    reports.filter(
-      (report) =>
-        report.status ===
-        "Pending"
-    ).length;
-
   const handleUpdateStatus = async (
     newStatus:
       | "Ongoing"
@@ -286,22 +279,6 @@ export default function AdminMap() {
             className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
             Accounts
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              navigate("/approval")
-            }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all flex items-center justify-between"
-          >
-            <span>Approval</span>
-
-            {pendingCount > 0 && (
-              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-black text-amber-800">
-                {pendingCount}
-              </span>
-            )}
           </button>
 
           <button

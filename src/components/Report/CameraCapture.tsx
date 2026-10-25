@@ -92,10 +92,10 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
   }, [onCapture, onClose, videoReady]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl p-4 max-w-md w-full space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-extrabold text-slate-900">Camera</h3>
+    <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center">
+      <div className="relative w-full h-full flex flex-col">
+        <div className="flex items-center justify-between p-3 bg-black/80">
+          <h3 className="text-sm font-extrabold text-white">Camera</h3>
           <button
             type="button"
             onClick={() => {
@@ -104,18 +104,20 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
               }
               onClose?.();
             }}
-            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 transition-all"
+            className="p-1.5 hover:bg-white/10 rounded-lg text-white transition-all"
           >
-            <FiX size={18} />
+            <FiX size={20} />
           </button>
         </div>
 
         {error ? (
-          <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl text-center">
-            {error}
+          <div className="flex-1 flex items-center justify-center p-4">
+            <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl text-center max-w-sm">
+              {error}
+            </div>
           </div>
         ) : (
-          <div className="relative bg-slate-900 rounded-xl overflow-hidden aspect-video">
+          <div className="flex-1 relative bg-black">
             <video
               ref={videoRef}
               autoPlay
@@ -128,7 +130,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
           </div>
         )}
 
-        <div className="flex items-center justify-center gap-3">
+        <div className="p-4 bg-black/80 flex items-center justify-center gap-3">
           <button
             type="button"
             onClick={handleCapture}

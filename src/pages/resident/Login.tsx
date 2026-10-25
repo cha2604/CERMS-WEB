@@ -7,10 +7,13 @@ import Card from "../../components/common/Card";
 import Input from "../../components/common/Input";
 import PasswordInput from "../../components/common/Password";
 import Button from "../../components/common/Button";
-import { FiMail } from "react-icons/fi";
+import {
+  FiUser,
+} from "react-icons/fi";
 import {
   ensureResidentProfile,
   getAccountStatus,
+  getEmailByUsername,
   loginWithEmail,
   loginWithGoogle,
 } from "../../lib/authHelpers";
@@ -22,25 +25,34 @@ export default function Login() {
   const [loading, setLoading] =
     useState(false);
 
-  const [googleLoading, setGoogleLoading] =
-    useState(false);
+  const [
+    googleLoading,
+    setGoogleLoading,
+  ] = useState(false);
 
-  const [errorMessage, setErrorMessage] =
-    useState("");
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
 
-  const [email, setEmail] =
-    useState("");
+  const [
+    loginIdentifier,
+    setLoginIdentifier,
+  ] = useState("");
 
   const [password, setPassword] =
     useState("");
 
-  const [rememberMe, setRememberMe] =
-    useState(false);
-
   async function redirectByRole() {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+      error,
+    } =
+      await supabase.auth.getUser();
+
+    if (error) {
+      throw error;
+    }
 
     if (!user) {
       throw new Error(
@@ -48,61 +60,22 @@ export default function Login() {
       );
     }
 
-    await ensureResidentProfile(
-      user
-    );
-
     const status =
       await getAccountStatus();
 
-    if (status.role === "admin") {
+    if (
+      status.role === "admin"
+    ) {
       await supabase.auth.signOut();
 
-      setErrorMessage(
+      throw new Error(
         "Admin accounts cannot log in through the resident portal."
       );
-
-      return;
     }
 
-    if (
-      status.approvalStatus ===
-      "pending"
-    ) {
-      navigate(
-        "/approval-pending",
-        {
-          replace: true,
-        }
-      );
-
-      return;
-    }
-
-    if (
-      status.approvalStatus ===
-      "rejected"
-    ) {
-      navigate(
-        "/approval-rejected",
-        {
-          replace: true,
-        }
-      );
-
-      return;
-    }
-
-    if (
-      status.approvalStatus !==
-      "approved"
-    ) {
-      setErrorMessage(
-        "Your account approval could not be verified. Please try again later."
-      );
-
-      return;
-    }
+    await ensureResidentProfile(
+      user
+    );
 
     navigate(
       "/dashboard",
@@ -121,8 +94,37 @@ export default function Login() {
     setErrorMessage("");
 
     try {
+      const identifier =
+        loginIdentifier
+          .trim()
+          .toLowerCase();
+
+      if (!identifier) {
+        throw new Error(
+          "Please enter your username or email."
+        );
+      }
+
+      if (!password) {
+        throw new Error(
+          "Please enter your password."
+        );
+      }
+
+      let loginEmail =
+        identifier;
+
+      if (
+        !identifier.includes("@")
+      ) {
+        loginEmail =
+          await getEmailByUsername(
+            identifier
+          );
+      }
+
       await loginWithEmail(
-        email.trim(),
+        loginEmail,
         password
       );
 
@@ -133,10 +135,27 @@ export default function Login() {
         error
       );
 
-      setErrorMessage(
+      const message =
         error instanceof Error
           ? error.message
-          : "Login failed. Please check your credentials."
+          : "Login failed.";
+
+      if (
+        message
+          .toLowerCase()
+          .includes(
+            "invalid login credentials"
+          )
+      ) {
+        setErrorMessage(
+          "Incorrect username, email, or password."
+        );
+
+        return;
+      }
+
+      setErrorMessage(
+        message
       );
     } finally {
       setLoading(false);
@@ -178,7 +197,8 @@ export default function Login() {
           </h2>
 
           <p className="mt-1 text-sm text-gray-500">
-            Login to your account
+            Login to your
+            resident account
           </p>
         </div>
 
@@ -190,10 +210,6 @@ export default function Login() {
           <p className="mt-1 text-sm font-bold text-green-900">
             8:00 AM – 5:00 PM
           </p>
-
-          <p className="mt-1 text-[11px] font-medium text-green-700">
-            Approval requests are reviewed during barangay office hours.
-          </p>
         </div>
 
         <form
@@ -203,19 +219,21 @@ export default function Login() {
           className="mt-6 space-y-5"
         >
           <Input
-            label="Email"
-            type="email"
-            placeholder="Enter your email"
+            label="Username or Email"
+            type="text"
+            placeholder="Enter your username or email"
             icon={
-              <FiMail size={16} />
+              <FiUser size={16} />
             }
-            value={email}
+            value={
+              loginIdentifier
+            }
             onChange={(e) =>
-              setEmail(
+              setLoginIdentifier(
                 e.target.value
               )
             }
-            autoComplete="email"
+            autoComplete="username"
             required
           />
 
@@ -231,29 +249,6 @@ export default function Login() {
             autoComplete="current-password"
             required
           />
-
-          <div className="flex items-center justify-between gap-3">
-            <label className="flex items-center gap-2 text-sm text-slate-600">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) =>
-                  setRememberMe(
-                    e.target.checked
-                  )
-                }
-                className="h-4 w-4 rounded border-slate-300 text-green-700 focus:ring-green-500"
-              />
-
-              Remember me
-            </label>
-
-            <span className="text-xs text-slate-400">
-              {rememberMe
-                ? "Session saved"
-                : "Session only"}
-            </span>
-          </div>
 
           <Button
             type="submit"
@@ -322,7 +317,8 @@ export default function Login() {
           )}
 
           <p className="text-center text-sm text-gray-500">
-            Don't have an account?{" "}
+            Don't have an
+            account?{" "}
             <Link
               to="/register"
               className="font-semibold text-green-700 hover:underline"

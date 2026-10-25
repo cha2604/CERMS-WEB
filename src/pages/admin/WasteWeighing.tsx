@@ -781,25 +781,6 @@ export default function WasteWeighing() {
           <button
             type="button"
             onClick={() =>
-              navigate("/approval")
-            }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all flex items-center gap-3"
-          >
-            <FiCheck size={16} />
-            Approval
-          </button>
-
-          <button
-            type="button"
-            className="w-full text-left px-4 py-3 rounded-xl bg-emerald-800 text-white shadow-sm flex items-center gap-3"
-          >
-            <FiBarChart2 size={16} />
-            Waste Weighing
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
               navigate("/archive")
             }
             className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all flex items-center gap-3"

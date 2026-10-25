@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  CircleMarker,
   MapContainer,
   Marker,
   TileLayer,
@@ -155,9 +154,6 @@ export default function LocationPicker({
   const [fetchingAddress, setFetchingAddress] =
     useState(false);
 
-  const [currentLocation, setCurrentLocation] =
-    useState<{ lat: number; lng: number } | null>(null);
-
   const [locating, setLocating] =
     useState(false);
 
@@ -309,11 +305,6 @@ export default function LocationPicker({
           const currentLng = position.coords.longitude;
 
           if (isWithinTankulan(currentLat, currentLng)) {
-            setCurrentLocation({
-              lat: currentLat,
-              lng: currentLng,
-            });
-
             if (
               typeof selectedLat !== "number" ||
               typeof selectedLng !== "number"
@@ -371,11 +362,6 @@ export default function LocationPicker({
           return;
         }
 
-        setCurrentLocation({
-          lat: currentLat,
-          lng: currentLng,
-        });
-
         updateReportLocation(
           currentLat,
           currentLng
@@ -415,7 +401,7 @@ export default function LocationPicker({
 
   return (
     <div className="space-y-3">
-      <div className="relative h-80 w-full overflow-hidden rounded-2xl border border-slate-300 shadow-inner">
+      <div className="relative h-64 sm:h-80 w-full overflow-hidden rounded-2xl border border-slate-300 shadow-inner">
         <div className="absolute left-2 top-2 z-[1000] flex gap-2">
           <button
             type="button"
@@ -494,32 +480,11 @@ export default function LocationPicker({
             icon={reportPinIcon}
             ref={markerRef}
           />
-
-          {currentLocation && (
-            <CircleMarker
-              center={[
-                currentLocation.lat,
-                currentLocation.lng,
-              ]}
-              radius={7}
-              pathOptions={{
-                color: "#ffffff",
-                fillColor: "#2563eb",
-                fillOpacity: 0.95,
-                weight: 3,
-              }}
-            />
-          )}
         </MapContainer>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
         <div className="flex items-center gap-4 text-[10px] font-bold text-slate-600">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded-full bg-blue-600 border-2 border-white shadow" />
-            Your current location
-          </span>
-
           <span className="inline-flex items-center gap-1.5">
             <span className="h-3 w-3 rounded-full bg-red-600 border-2 border-white shadow" />
             Waste report location (Drag pin within Tankulan)

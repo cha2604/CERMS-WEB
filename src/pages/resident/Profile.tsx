@@ -9,23 +9,49 @@ import {
 import Input from "../../components/common/Input";
 import Button from "../../components/common/Button";
 
+const AREAS = [
+  "CENTRO",
+  "TUMAMPONG",
+  "ST. JOSEPH",
+  "MULBERRY",
+  "MANGIMA",
+  "LOWER KALANAWAN",
+  "UPPER KALANAWAN",
+  "PROPER KALANAWAN",
+  "UPPER POL-OTON",
+  "LOWER POL-OTON",
+  "KIHARE",
+  "LOWER SOSOHON",
+  "UPPER SOSOHON",
+];
+
+const FIXED_ADDRESS_SUFFIX =
+  "Barangay Tankulan, Manolo Fortich, Bukidnon";
+
+function extractArea(address: string | null): string {
+  if (!address) return "";
+  const area = address.split(",")[0]?.trim();
+  return AREAS.includes(area || "") ? (area || "") : "";
+}
+
 function usernameFromEmail(email: string | null) {
   if (!email) return "-";
   return email.split("@")[0];
 }
 
 export default function ResidentProfile() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [editing, setEditing] = useState(false);
+const [profile, setProfile] = useState<Profile | null>(null);
+const [editing, setEditing] = useState(false);
 
-  const [fullName, setFullName] = useState("");
-  const [address, setAddress] = useState("");
-  const [contactNumber, setContactNumber] = useState("");
+const [fullName, setFullName] = useState("");
+const [address, setAddress] = useState("");
+const [area, setArea] = useState("");
+const [contactNumber, setContactNumber] = useState("");
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+const [loading, setLoading] = useState(true);
+const [saving, setSaving] = useState(false);
+const [errorMessage, setErrorMessage] = useState("");
+const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -54,10 +80,11 @@ export default function ResidentProfile() {
 
         if (!mounted) return;
 
-        setProfile(data);
-        setFullName(data.full_name || "");
-        setAddress(data.address || "");
-        setContactNumber(data.contact_number || "");
+setProfile(data);
+setFullName(data.full_name || "");
+setAddress(data.address || "");
+setArea(extractArea(data.address));
+setContactNumber(data.contact_number || "");
       } catch (err) {
         console.error("Failed to load profile:", err);
 
@@ -87,23 +114,31 @@ export default function ResidentProfile() {
 
     if (!profile) return;
 
-    setSaving(true);
-    setErrorMessage("");
-    setSuccessMessage("");
+    if (contactNumber && (contactNumber.length !== 11 || !contactNumber.startsWith("09"))) {
+      setErrorMessage("Contact number must be 11 digits starting with 09.");
+      setSaving(false);
+      return;
+    }
 
-    try {
-      await updateProfile(profile.id, {
+const fullAddress = area
+  ? `${area}, ${FIXED_ADDRESS_SUFFIX}`
+  : address;
+
+try {
+await updateProfile(profile.id, {
         full_name: fullName,
         contact_number: contactNumber,
-        address,
+        address: fullAddress,
       });
 
-      setProfile({
-        ...profile,
-        full_name: fullName,
-        contact_number: contactNumber,
-        address,
-      });
+  setProfile({
+    ...profile,
+    full_name: fullName,
+    contact_number: contactNumber,
+    address: fullAddress,
+  });
+
+  setAddress(fullAddress);
 
       setSuccessMessage(
         "Profile updated successfully."
@@ -121,16 +156,17 @@ export default function ResidentProfile() {
     }
   }
 
-  const handleCancel = () => {
+const handleCancel = () => {
     if (!profile) return;
 
-    setFullName(profile.full_name || "");
-    setAddress(profile.address || "");
-    setContactNumber(profile.contact_number || "");
-    setErrorMessage("");
-    setSuccessMessage("");
-    setEditing(false);
-  };
+setFullName(profile.full_name || "");
+setAddress(profile.address || "");
+setArea(extractArea(profile.address));
+setContactNumber(profile.contact_number || "");
+setErrorMessage("");
+setSuccessMessage("");
+setEditing(false);
+};
 
   if (loading) {
     return (
@@ -296,25 +332,57 @@ export default function ResidentProfile() {
                 required
               />
 
-              <Input
-                label="Address"
-                type="text"
-                value={address}
-                onChange={(e) =>
-                  setAddress(e.target.value)
-                }
-                required
-              />
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Area / Purok
+                </label>
 
-              <Input
-                label="Contact Number"
-                type="tel"
-                value={contactNumber}
-                onChange={(e) =>
-                  setContactNumber(e.target.value)
-                }
-                placeholder="09XX-XXX-XXXX"
-              />
+                <select
+                  value={area}
+                  onChange={(e) =>
+                    setArea(e.target.value)
+                  }
+                  required
+                  className="w-full appearance-none rounded-xl border border-slate-300 py-3 px-4 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-200"
+                >
+                  <option value="" disabled>
+                    Select your Area
+                  </option>
+
+                  {AREAS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+
+                <p className="mt-1 text-xs text-gray-400">
+                  {FIXED_ADDRESS_SUFFIX} will be added automatically.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Contact Number
+                </label>
+
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="09[0-9]{9}"
+                  maxLength={11}
+                  minLength={11}
+                  value={contactNumber}
+                  onChange={(e) => {
+                    const numbersOnly = e.target.value
+                      .replace(/\D/g, "")
+                      .slice(0, 11);
+                    setContactNumber(numbersOnly);
+                  }}
+                  placeholder="09XXXXXXXXX"
+                  className="w-full rounded-xl border border-slate-300 py-3 px-4 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-200"
+                />
+              </div>
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-700">
