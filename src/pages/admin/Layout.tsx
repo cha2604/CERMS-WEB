@@ -2,16 +2,36 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   FiArchive,
   FiBarChart2,
+  FiBell,
   FiFileText,
   FiLogOut,
   FiMapPin,
   FiUsers,
 } from "react-icons/fi";
 import { supabase } from "../../lib/supabase";
+import { useEffect, useState } from "react";
 
 export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    async function loadUnread() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { count } = await supabase
+          .from("notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("is_read", false);
+        setUnreadCount(count || 0);
+      }
+    }
+    loadUnread();
+  }, [location.pathname]);
 
   const isActive = (
     path: string
@@ -173,6 +193,21 @@ export default function AdminLayout() {
       </aside>
 
       <main className="admin-page-content ml-64 min-h-screen min-w-0">
+        <div className="sticky top-0 z-30 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-end print:hidden">
+          <button
+            type="button"
+            onClick={() => navigate("/notifications")}
+            className="relative p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all"
+            title="Notifications"
+          >
+            <FiBell size={20} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-5 w-5 bg-rose-500 text-white rounded-full text-[10px] font-black flex items-center justify-center border-2 border-white">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+        </div>
         <Outlet />
       </main>
     </div>

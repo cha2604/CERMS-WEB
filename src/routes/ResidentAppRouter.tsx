@@ -17,7 +17,6 @@ import DraftReport from "../pages/resident/DraftReport";
 import History from "../pages/resident/History";
 import Profile from "../pages/resident/Profile";
 import ReportDetails from "../pages/resident/ReportDetails";
-import MapView from "../pages/resident/Mapview";
 import Notifications from "../pages/resident/Notification";
 
 import ProtectedRoute from "./ProtectedRoute";
@@ -136,13 +135,6 @@ export default function UserAppRouter() {
             path="/report/:id"
             element={
               <ReportDetails />
-            }
-          />
-
-          <Route
-            path="/map"
-            element={
-              <MapView />
             }
           />
         </Route>

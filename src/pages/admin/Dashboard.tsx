@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   FiArrowRight,
   FiBarChart2,
@@ -56,7 +56,18 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState("");
   const [showOrgChart, setShowOrgChart] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.state?.saveSuccess) {
+      setSaveSuccess(location.state.saveSuccess);
+      // Clear the state so it doesn't show again on refresh
+      window.history.replaceState({}, document.title);
+      setTimeout(() => setSaveSuccess(""), 5000);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     loadDashboard();
@@ -88,7 +99,7 @@ export default function AdminDashboard() {
         supabase
           .from("reports")
           .select(
-            "id, title, waste_type, location_name, status, created_at, profiles(full_name), report_assignments(team_name, personnel_name)"
+            "id, title, waste_type, location_name, status, created_at, profiles(full_name)"
           )
           .order("created_at", { ascending: false })
           .limit(6),
@@ -135,14 +146,21 @@ export default function AdminDashboard() {
           status: string;
           created_at: string;
           profiles?: { full_name?: string | null } | null;
-          report_assignments?: Array<{
-            team_name: string | null;
-            personnel_name: string | null;
-          }> | null;
         }[];
 
+      // Fetch assignments separately
+      const reportIds = recentReportRows.map((r) => r.id);
+      const { data: assignmentsData } = await supabase
+        .from("report_assignments")
+        .select("report_id, team_name, personnel_name")
+        .in("report_id", reportIds);
+
+      const assignmentMap = new Map(
+        (assignmentsData || []).map((a) => [a.report_id, a])
+      );
+
       const mappedReports = recentReportRows.map((report) => {
-        const assignment = report.report_assignments?.[0];
+        const assignment = assignmentMap.get(report.id);
         return {
           ...report,
           team_name: assignment?.team_name || null,
@@ -357,6 +375,13 @@ export default function AdminDashboard() {
           {errorMessage && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm font-semibold text-rose-700">
               {errorMessage}
+            </div>
+          )}
+
+          {saveSuccess && (
+            <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-700">
+              <FiCheckCircle size={18} />
+              {saveSuccess}
             </div>
           )}
 

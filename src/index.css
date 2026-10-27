@@ -1,8 +1,15 @@
 @tailwind base;
-
 @tailwind components;
-
 @tailwind utilities;
+
+/* Ensure map stays below sidebar drawer (z-50) */
+.leaflet-container {
+  z-index: 1 !important;
+}
+
+.leaflet-control-container {
+  z-index: 2 !important;
+}
 
 * {
   margin: 0;

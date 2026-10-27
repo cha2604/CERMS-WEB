@@ -146,7 +146,7 @@ export default function LocationPicker({
   const [lng, setLng] = useState(initialLng);
 
   const [reportAddress, setReportAddress] =
-    useState("Barangay Tankulan, Manolo Fortich, Bukidnon");
+    useState("Barangay Tankulan, Manolo Fortich, Bukidnon 8705");
 
   const [communityArea, setCommunityArea] =
     useState("");
@@ -220,14 +220,17 @@ export default function LocationPicker({
 
       const road = addressObj.road || addressObj.street || addressObj.pedestrian || addressObj.building || "";
       const suburb = addressObj.suburb || addressObj.neighbourhood || addressObj.village || addressObj.hamlet || "";
+      const city = addressObj.city || addressObj.town || addressObj.municipality || "Manolo Fortich";
+      const province = addressObj.state || addressObj.province || "Bukidnon";
+      const postcode = addressObj.postcode || "8705";
       const detectedArea = findCommunityArea(`${data?.display_name || ""} ${road} ${suburb}`);
 
       const parts = [
         road,
         suburb || (detectedArea ? `Purok ${detectedArea}` : ""),
-        "Barangay Tankulan",
-        "Manolo Fortich",
-        "Bukidnon",
+        city,
+        province,
+        postcode,
       ].filter(Boolean);
 
       const uniqueParts = Array.from(new Set(parts));
@@ -243,7 +246,7 @@ export default function LocationPicker({
         detectedArea || "Barangay Tankulan"
       );
     } catch {
-      const fallbackAddress = "Barangay Tankulan, Manolo Fortich, Bukidnon";
+      const fallbackAddress = "Barangay Tankulan, Manolo Fortich, Bukidnon 8705";
       setReportAddress(fallbackAddress);
       setCommunityArea("Barangay Tankulan");
 
@@ -401,8 +404,8 @@ export default function LocationPicker({
 
   return (
     <div className="space-y-3">
-      <div className="relative h-64 sm:h-80 w-full overflow-hidden rounded-2xl border border-slate-300 shadow-inner">
-        <div className="absolute left-2 top-2 z-[1000] flex gap-2">
+      <div className="relative h-64 sm:h-80 w-full overflow-hidden rounded-2xl border border-slate-300 shadow-inner z-0">
+        <div className="absolute left-2 top-2 z-[40] flex gap-2 pointer-events-auto">
           <button
             type="button"
             onClick={handleUseMyLocation}
@@ -418,7 +421,7 @@ export default function LocationPicker({
           </button>
         </div>
 
-        <div className="absolute right-2 top-2 z-[1000] flex rounded-lg bg-white/95 p-0.5 shadow-md border border-slate-200 text-[11px] font-bold">
+        <div className="absolute right-2 top-2 z-[40] flex rounded-lg bg-white/95 p-0.5 shadow-md border border-slate-200 text-[11px] font-bold pointer-events-auto">
           <button
             type="button"
             onClick={() => setTileType("street")}

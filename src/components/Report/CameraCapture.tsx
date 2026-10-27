@@ -20,7 +20,12 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
     async function startCamera() {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
+          video: {
+            facingMode: "environment",
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            focusMode: "continuous",
+          },
         });
         if (cancelled) {
           mediaStream.getTracks().forEach((t) => t.stop());
@@ -29,6 +34,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
         streamRef.current = mediaStream;
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
+          videoRef.current.setAttribute("playsinline", "true");
         }
       } catch (err) {
         setError(
@@ -69,6 +75,31 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
     if (!ctx) return;
 
     ctx.drawImage(video, 0, 0);
+
+    // Add timestamp to the photo
+    const now = new Date();
+    const timestamp = now.toLocaleString("en-US", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+
+    const fontSize = Math.max(16, Math.floor(canvas.width / 40));
+    ctx.font = `bold ${fontSize}px Arial`;
+    ctx.fillStyle = "white";
+    ctx.textAlign = "right";
+    ctx.shadowColor = "black";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    ctx.fillText(timestamp, canvas.width - 20, canvas.height - 20);
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
 
     canvas.toBlob((blob) => {
       if (!blob) return;
@@ -125,6 +156,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
               muted
               onLoadedMetadata={handleVideoLoaded}
               className="w-full h-full object-cover"
+              style={{ imageRendering: "auto" }}
             />
             <canvas ref={canvasRef} className="hidden" />
           </div>
@@ -135,16 +167,16 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
             type="button"
             onClick={handleCapture}
             disabled={!!error || captured}
-            className="flex items-center gap-2 px-6 py-3 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl transition-all"
+            className="flex items-center gap-2 px-8 py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-sm rounded-xl transition-all shadow-lg"
           >
             {captured ? (
               <>
-                <FiCheck size={16} />
+                <FiCheck size={20} />
                 Captured!
               </>
             ) : (
               <>
-                <FiCamera size={16} />
+                <FiCamera size={20} />
                 Take Photo
               </>
             )}

@@ -15,6 +15,7 @@ import AdminMap from "../pages/admin/Map";
 import AdminReportDetails from "../pages/admin/ReportDetails";
 import Users from "../pages/admin/Users";
 import Archive from "../pages/admin/Archive";
+import Notifications from "../pages/admin/Notifications";
 import WasteWeighing from "../pages/admin/WasteWeighing";
 import { supabase } from "../lib/supabase";
 
@@ -166,6 +167,11 @@ export default function AdminAppRouter() {
           <Route
             path="/waste-weighing"
             element={<WasteWeighing />}
+          />
+
+          <Route
+            path="/notifications"
+            element={<Notifications />}
           />
 
           <Route
