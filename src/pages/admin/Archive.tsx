@@ -466,7 +466,7 @@ export default function Archive() {
               }`}
             >
               <span className="text-xl font-black tracking-wide">
-                PEOPLE
+                ACCOUNTS
               </span>
             </button>
           </div>

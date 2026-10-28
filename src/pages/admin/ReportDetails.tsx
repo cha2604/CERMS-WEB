@@ -1310,22 +1310,22 @@ export default function AdminReportDetails() {
 
       <main
         id="print-area"
-        className="mx-auto max-w-[1500px] p-5 lg:p-7 print:max-w-none print:p-0"
+        className="mx-auto max-w-[1500px] p-5 lg:p-7 print:max-w-none print:p-2"
       >
-        <div className="mb-6 hidden border-b-2 border-emerald-800 pb-4 text-center print:block">
-          <p className="text-xs font-black tracking-[0.18em] text-slate-500">
+        <div className="mb-3 hidden border-b border-emerald-800 pb-2 text-center print:block">
+          <p className="text-[10px] font-black tracking-[0.18em] text-slate-500">
             REPUBLIC OF THE PHILIPPINES
           </p>
 
-          <h1 className="mt-1 text-2xl font-black text-emerald-900">
+          <h1 className="mt-0.5 text-lg font-black text-emerald-900">
             BARANGAY TANKULAN
           </h1>
 
-          <p className="text-sm font-bold text-slate-700">
+          <p className="text-xs font-bold text-slate-700">
             WASTE INCIDENT REPORT
           </p>
 
-          <p className="mt-1 text-[11px] text-slate-500">
+          <p className="mt-0.5 text-[10px] text-slate-500">
             CERMS Official Report
           </p>
         </div>
@@ -1345,7 +1345,7 @@ export default function AdminReportDetails() {
           </div>
         )}
 
-        <section className="mb-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none">
+        <section className="mb-3 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none print:mb-2">
           <div className="flex flex-col justify-between gap-5 p-6 sm:flex-row sm:items-center">
             <div className="flex items-center gap-4">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-800 text-white">
@@ -1407,7 +1407,7 @@ export default function AdminReportDetails() {
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)]">
           <div className="space-y-6">
-            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none">
+            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none print:mb-2">
               <div className="flex items-center gap-3 border-b border-emerald-100 bg-emerald-50/70 px-6 py-4">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-800 text-white">
                   <FiUser
@@ -1473,7 +1473,7 @@ export default function AdminReportDetails() {
               </div>
             </section>
 
-            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none">
+            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none print:mb-2">
               <div className="flex items-center gap-3 border-b border-emerald-100 bg-emerald-50/70 px-6 py-4">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-800 text-white">
                   <FiFileText
@@ -1511,7 +1511,7 @@ export default function AdminReportDetails() {
               </div>
             </section>
 
-            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none">
+            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none print:mb-2">
               <div className="flex items-center gap-3 border-b border-emerald-100 bg-emerald-50/70 px-6 py-4">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-800 text-white">
                   <FiMapPin
@@ -1570,7 +1570,7 @@ export default function AdminReportDetails() {
                   "number" &&
                 typeof report.longitude ===
                   "number" ? (
-                  <div className="mt-5 h-[300px] overflow-hidden rounded-2xl border border-slate-200 print:hidden">
+                  <div className="mt-5 h-[200px] overflow-hidden rounded-2xl border border-slate-200 print:hidden">
                     <MapContainer
                       center={[
                         report.latitude,
@@ -1632,18 +1632,18 @@ export default function AdminReportDetails() {
               </div>
             </section>
 
-            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none">
-              <div className="flex items-center gap-3 border-b border-violet-100 bg-violet-50/70 px-6 py-4">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-700 text-white">
-                  <FiClock
-                    size={17}
-                  />
-                </div>
+<section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none print:mb-2 print:hidden">
+               <div className="flex items-center gap-3 border-b border-violet-100 bg-violet-50/70 px-6 py-4">
+                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-700 text-white">
+                   <FiClock
+                     size={17}
+                   />
+                 </div>
 
-                <h3 className="font-black text-slate-900">
-                  Report Timeline
-                </h3>
-              </div>
+                 <h3 className="font-black text-slate-900">
+                   Report Timeline
+                 </h3>
+               </div>
 
               <div className="p-6">
                 <div className="space-y-5">
@@ -1692,7 +1692,7 @@ export default function AdminReportDetails() {
           </div>
 
           <div className="space-y-6">
-            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none">
+            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none print:mb-2">
               <div className="flex items-center justify-between border-b border-emerald-100 bg-emerald-50/70 px-6 py-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-800 text-white">
@@ -1735,7 +1735,7 @@ export default function AdminReportDetails() {
                             mainImage
                           }
                           alt="Waste evidence"
-                          className="h-[340px] w-full object-cover"
+                          className="h-[340px] w-full object-cover print:h-[150px]"
                         />
                       )}
                     </button>
@@ -1920,7 +1920,7 @@ export default function AdminReportDetails() {
               </div>
             </section>
 
-            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none">
+            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none print:mb-2 print:hidden">
               <div className="border-b border-slate-100 px-6 py-4">
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   Report Status
@@ -2000,7 +2000,7 @@ export default function AdminReportDetails() {
               </div>
             </section>
 
-            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none">
+            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none print:mb-2 print:hidden">
               <div className="flex items-center justify-between border-b border-emerald-100 bg-emerald-50/70 px-6 py-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-800 text-white">
@@ -2275,8 +2275,8 @@ export default function AdminReportDetails() {
               </div>
             </section>
 
-            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none">
-              <div className="border-b border-emerald-100 bg-emerald-50/70 px-6 py-4">
+<section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm print:rounded-none print:shadow-none print:mb-2 print:hidden">
+               <div className="border-b border-emerald-100 bg-emerald-50/70 px-6 py-4">
                 <h3 className="font-black text-slate-900">
                   Admin Remarks / Action
                 </h3>
@@ -2359,14 +2359,14 @@ export default function AdminReportDetails() {
           </div>
         </div>
 
-        <section className="mt-8 hidden border-t-2 border-slate-300 pt-5 print:block print:break-inside-avoid">
+        <section className="mt-4 hidden border-t border-slate-300 pt-3 print:block print:break-inside-avoid">
           <div className="grid grid-cols-2 gap-10 text-xs">
             <div>
               <p className="font-black uppercase tracking-wider text-slate-500">
                 Prepared by
               </p>
 
-              <div className="mt-8 h-12 border-b border-slate-400" />
+              <div className="mt-4 h-8 border-b border-slate-400" />
 
               <p className="mt-2 font-bold text-slate-800">
                 Barangay Personnel
@@ -2378,7 +2378,7 @@ export default function AdminReportDetails() {
                 Reviewed by
               </p>
 
-              <div className="mt-8 h-12 border-b border-slate-400" />
+              <div className="mt-4 h-8 border-b border-slate-400" />
 
               <p className="mt-2 font-bold text-slate-800">
                 Barangay Official
