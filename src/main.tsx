@@ -1,21 +1,33 @@
-import { StrictMode, Component, Suspense, lazy } from 'react'
-import type { ReactNode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
-import './index.css'
+import {
+  StrictMode,
+  Component,
+  Suspense,
+  lazy,
+} from "react";
+import type { ReactNode } from "react";
+import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import "./index.css";
 
-const App = lazy(() => import('./App.tsx'))
+const App = lazy(() => import("./App.tsx"));
 
 const REQUIRED_ENV_VARS = [
-  'VITE_SUPABASE_URL',
-  'VITE_SUPABASE_PUBLISHABLE_KEY',
-  'VITE_GOOGLE_MAPS_API_KEY',
-  'VITE_ADMIN_DOMAIN',
-  'VITE_USER_DOMAIN',
-]
+  "VITE_SUPABASE_URL",
+  "VITE_SUPABASE_PUBLISHABLE_KEY",
+  "VITE_GOOGLE_MAPS_API_KEY",
+  "VITE_ADMIN_DOMAIN",
+  "VITE_USER_DOMAIN",
+  "VITE_STAFF_DOMAIN",
+];
 
-function SetupNotice({ message }: { message: string }) {
-  const missing = REQUIRED_ENV_VARS.filter((name) => !import.meta.env[name])
+function SetupNotice({
+  message,
+}: {
+  message: string;
+}) {
+  const missing = REQUIRED_ENV_VARS.filter(
+    (name) => !import.meta.env[name]
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-5 font-sans">
@@ -24,7 +36,9 @@ function SetupNotice({ message }: { message: string }) {
           Setup required
         </h1>
 
-        <p className="mt-2 text-sm font-semibold text-slate-600">{message}</p>
+        <p className="mt-2 text-sm font-semibold text-slate-600">
+          {message}
+        </p>
 
         {missing.length > 0 && (
           <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-4">
@@ -46,35 +60,48 @@ function SetupNotice({ message }: { message: string }) {
         )}
 
         <p className="mt-4 text-xs font-semibold text-slate-500 leading-relaxed">
-          Add these in Vercel under Project → Settings → Environment Variables
-          (tick both Production and Preview), then redeploy. They are baked in at
-          build time, so editing them without redeploying has no effect.
+          Add these in Vercel under Project → Settings → Environment
+          Variables, then redeploy.
         </p>
       </div>
     </div>
-  )
+  );
 }
 
 class StartupErrorBoundary extends Component<
   { children: ReactNode },
   { error: Error | null }
 > {
-  state: { error: Error | null } = { error: null }
+  state: { error: Error | null } = {
+    error: null,
+  };
 
-  static getDerivedStateFromError(error: Error) {
-    return { error }
+  static getDerivedStateFromError(
+    error: Error
+  ) {
+    return {
+      error,
+    };
   }
 
   render() {
     if (this.state.error) {
-      return <SetupNotice message={this.state.error.message} />
+      return (
+        <SetupNotice
+          message={
+            this.state.error.message
+          }
+        />
+      );
     }
 
-    return this.props.children
+    return this.props.children;
   }
 }
 
-createRoot(document.getElementById('root')!).render(
+createRoot(
+  document.getElementById("root")!
+).render(
   <StrictMode>
     <StartupErrorBoundary>
       <BrowserRouter>
@@ -89,5 +116,5 @@ createRoot(document.getElementById('root')!).render(
         </Suspense>
       </BrowserRouter>
     </StartupErrorBoundary>
-  </StrictMode>,
-)
+  </StrictMode>
+);

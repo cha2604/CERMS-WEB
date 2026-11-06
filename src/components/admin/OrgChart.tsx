@@ -34,7 +34,7 @@ const BARANGAY_ORG: {
     },
     {
       name: "Solid Waste Management",
-      head: { name: "Dominador L. Domo", position: "SWM Coordinator" },
+      head: { name: "Hon. Barangay Captain", position: "Barangay Captain / Head" },
       members: [],
     },
     {
@@ -127,7 +127,7 @@ export default function OrgChart() {
                         {team.head.position}
                       </p>
                       <span className="inline-flex items-center gap-1.5 mt-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                        Team Head
+                        {team.name === "Solid Waste Management" ? "Head of Office" : "Team Head"}
                       </span>
                     </div>
                     {team.members.length > 0 && (

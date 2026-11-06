@@ -1020,7 +1020,7 @@ export default function WasteWeighing() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)] gap-6 print:hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)] gap-6">
             <section className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
               <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
                 <div className="h-11 w-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
@@ -1163,7 +1163,7 @@ export default function WasteWeighing() {
             </section>
           </div>
 
-          <section className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden print:shadow-none print:rounded-none">
+          <section id="print-area" className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden print:shadow-none print:rounded-none">
             <div className="px-6 py-5 border-b border-slate-100 print:hidden">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>

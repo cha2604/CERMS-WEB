@@ -14,6 +14,7 @@ import AdminReports from "../pages/admin/Reports";
 import AdminMap from "../pages/admin/Map";
 import AdminReportDetails from "../pages/admin/ReportDetails";
 import Users from "../pages/admin/Users";
+import StaffAccounts from "../pages/admin/StaffAccounts";
 import Archive from "../pages/admin/Archive";
 import Notifications from "../pages/admin/Notifications";
 import WasteWeighing from "../pages/admin/WasteWeighing";
@@ -162,6 +163,11 @@ export default function AdminAppRouter() {
           <Route
             path="/users"
             element={<Users />}
+          />
+
+          <Route
+            path="/staff"
+            element={<StaffAccounts />}
           />
 
           <Route

@@ -1,4 +1,8 @@
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+  Outlet,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import {
   FiArchive,
   FiBarChart2,
@@ -6,52 +10,93 @@ import {
   FiFileText,
   FiLogOut,
   FiMapPin,
+  FiUserPlus,
   FiUsers,
 } from "react-icons/fi";
 import { supabase } from "../../lib/supabase";
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 export default function AdminLayout() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [unreadCount, setUnreadCount] = useState(0);
+  const navigate =
+    useNavigate();
+
+  const location =
+    useLocation();
+
+  const [
+    unreadCount,
+    setUnreadCount,
+  ] = useState(0);
 
   useEffect(() => {
     async function loadUnread() {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } =
+        await supabase.auth.getUser();
+
       if (user) {
-        const { count } = await supabase
+        const {
+          count,
+        } = await supabase
           .from("notifications")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("is_read", false);
-        setUnreadCount(count || 0);
+          .select("id", {
+            count: "exact",
+            head: true,
+          })
+          .eq(
+            "user_id",
+            user.id
+          )
+          .eq(
+            "is_read",
+            false
+          );
+
+        setUnreadCount(
+          count || 0
+        );
       }
     }
+
     loadUnread();
   }, [location.pathname]);
 
   const isActive = (
     path: string
   ) => {
-    if (path === "/reports") {
+    if (
+      path === "/reports"
+    ) {
       return (
-        location.pathname === "/reports" ||
-        location.pathname.startsWith("/report/")
+        location.pathname ===
+          "/reports" ||
+        location.pathname.startsWith(
+          "/report/"
+        )
       );
     }
 
-    return location.pathname === path;
+    return (
+      location.pathname ===
+      path
+    );
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/login", {
-      replace: true,
-    });
-  };
+  const handleLogout =
+    async () => {
+      await supabase.auth.signOut();
+
+      navigate(
+        "/login",
+        {
+          replace: true,
+        }
+      );
+    };
 
   return (
     <div className="admin-layout min-h-screen bg-slate-50 font-sans">
@@ -92,15 +137,21 @@ export default function AdminLayout() {
           <button
             type="button"
             onClick={() =>
-              navigate("/dashboard")
+              navigate(
+                "/dashboard"
+              )
             }
             className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${
-              isActive("/dashboard")
+              isActive(
+                "/dashboard"
+              )
                 ? "bg-emerald-800 text-white shadow-sm"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            <FiBarChart2 size={16} />
+            <FiBarChart2
+              size={16}
+            />
             Dashboard
           </button>
 
@@ -115,67 +166,114 @@ export default function AdminLayout() {
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            <FiMapPin size={16} />
+            <FiMapPin
+              size={16}
+            />
             Geotagged Map
           </button>
 
           <button
             type="button"
             onClick={() =>
-              navigate("/reports")
+              navigate(
+                "/reports"
+              )
             }
             className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${
-              isActive("/reports")
+              isActive(
+                "/reports"
+              )
                 ? "bg-emerald-800 text-white shadow-sm"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            <FiFileText size={16} />
+            <FiFileText
+              size={16}
+            />
             Reports
           </button>
 
           <button
             type="button"
             onClick={() =>
-              navigate("/users")
+              navigate(
+                "/users"
+              )
             }
             className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${
-              isActive("/users")
+              isActive(
+                "/users"
+              )
                 ? "bg-emerald-800 text-white shadow-sm"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            <FiUsers size={16} />
+            <FiUsers
+              size={16}
+            />
             Accounts
           </button>
 
           <button
             type="button"
             onClick={() =>
-              navigate("/waste-weighing")
+              navigate(
+                "/staff"
+              )
             }
             className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${
-              isActive("/waste-weighing")
+              isActive(
+                "/staff"
+              )
                 ? "bg-emerald-800 text-white shadow-sm"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            <FiBarChart2 size={16} />
+            <FiUserPlus
+              size={16}
+            />
+            Staff Personnel
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              navigate(
+                "/waste-weighing"
+              )
+            }
+            className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${
+              isActive(
+                "/waste-weighing"
+              )
+                ? "bg-emerald-800 text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <FiBarChart2
+              size={16}
+            />
             Waste Weighing
           </button>
 
           <button
             type="button"
             onClick={() =>
-              navigate("/archive")
+              navigate(
+                "/archive"
+              )
             }
             className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${
-              isActive("/archive")
+              isActive(
+                "/archive"
+              )
                 ? "bg-emerald-800 text-white shadow-sm"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            <FiArchive size={16} />
+            <FiArchive
+              size={16}
+            />
             Archive
           </button>
         </nav>
@@ -183,10 +281,14 @@ export default function AdminLayout() {
         <div className="pt-4 border-t border-slate-100">
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={
+              handleLogout
+            }
             className="w-full py-2.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
           >
-            <FiLogOut size={15} />
+            <FiLogOut
+              size={15}
+            />
             Log Out
           </button>
         </div>
@@ -196,18 +298,29 @@ export default function AdminLayout() {
         <div className="sticky top-0 z-30 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-end print:hidden">
           <button
             type="button"
-            onClick={() => navigate("/notifications")}
+            onClick={() =>
+              navigate(
+                "/notifications"
+              )
+            }
             className="relative p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all"
             title="Notifications"
           >
-            <FiBell size={20} />
-            {unreadCount > 0 && (
+            <FiBell
+              size={20}
+            />
+
+            {unreadCount >
+              0 && (
               <span className="absolute -top-1 -right-1 h-5 w-5 bg-rose-500 text-white rounded-full text-[10px] font-black flex items-center justify-center border-2 border-white">
-                {unreadCount}
+                {
+                  unreadCount
+                }
               </span>
             )}
           </button>
         </div>
+
         <Outlet />
       </main>
     </div>
