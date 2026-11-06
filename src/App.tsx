@@ -1,3 +1,4 @@
+
 import { useEffect } from "react";
 import UserAppRouter from "./routes/ResidentAppRouter";
 import AdminAppRouter from "./routes/AdminAppRouter";
@@ -7,79 +8,28 @@ function normalizeDomain(
   value: string | undefined,
   fallback: string
 ) {
-  const domain = (
-    value || fallback
-  )
+  return (value || fallback)
     .trim()
     .toLowerCase()
-    .replace(
-      /^[a-z]+:\/\//,
-      ""
-    )
-    .replace(
-      /\/.*$/,
-      ""
-    );
-
-  return domain;
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "")
+    .replace(/:\d+$/, "");
 }
 
-const ADMIN_DOMAIN =
-  normalizeDomain(
-    import.meta.env
-      .VITE_ADMIN_DOMAIN,
-    "admin.localhost"
-  );
+const ADMIN_DOMAIN = normalizeDomain(
+  import.meta.env.VITE_ADMIN_DOMAIN,
+  "admin.localhost"
+);
 
-const USER_DOMAIN =
-  normalizeDomain(
-    import.meta.env
-      .VITE_USER_DOMAIN,
-    "user.localhost"
-  );
+const USER_DOMAIN = normalizeDomain(
+  import.meta.env.VITE_USER_DOMAIN,
+  "user.localhost"
+);
 
-const STAFF_DOMAIN =
-  normalizeDomain(
-    import.meta.env
-      .VITE_STAFF_DOMAIN,
-    "staff.localhost"
-  );
-
-function domainMatches(
-  hostname: string,
-  target: string
-) {
-  if (!target) {
-    return false;
-  }
-
-  if (
-    hostname === target
-  ) {
-    return true;
-  }
-
-  if (
-    hostname.endsWith(
-      `.${target}`
-    )
-  ) {
-    return true;
-  }
-
-  const hostLabel =
-    hostname.split(".")[0];
-
-  const targetLabel =
-    target.split(".")[0];
-
-  return (
-    hostLabel.length > 0 &&
-    hostLabel.startsWith(
-      targetLabel
-    )
-  );
-}
+const STAFF_DOMAIN = normalizeDomain(
+  import.meta.env.VITE_STAFF_DOMAIN,
+  "staff.localhost"
+);
 
 function RedirectToUserDomain() {
   useEffect(() => {
@@ -98,51 +48,25 @@ function RedirectToUserDomain() {
 }
 
 export default function App() {
-  const hostname =
-    window.location.hostname.toLowerCase();
+  const hostname = window.location.hostname
+    .trim()
+    .toLowerCase();
 
-  if (
-    domainMatches(
-      hostname,
-      ADMIN_DOMAIN
-    )
-  ) {
-    return (
-      <AdminAppRouter />
-    );
+  if (hostname === ADMIN_DOMAIN) {
+    return <AdminAppRouter />;
   }
 
-  if (
-    domainMatches(
-      hostname,
-      STAFF_DOMAIN
-    )
-  ) {
-    return (
-      <StaffAppRouter />
-    );
+  if (hostname === STAFF_DOMAIN) {
+    return <StaffAppRouter />;
   }
 
-  if (
-    domainMatches(
-      hostname,
-      USER_DOMAIN
-    )
-  ) {
-    return (
-      <UserAppRouter />
-    );
+  if (hostname === USER_DOMAIN) {
+    return <UserAppRouter />;
   }
 
-  if (
-    hostname === "localhost"
-  ) {
-    return (
-      <RedirectToUserDomain />
-    );
+  if (hostname === "localhost") {
+    return <RedirectToUserDomain />;
   }
 
-  return (
-    <UserAppRouter />
-  );
+  return <UserAppRouter />;
 }
