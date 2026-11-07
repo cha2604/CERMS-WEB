@@ -440,6 +440,20 @@ export default function ReportDetails() {
     searchParams,
   ]);
 
+  const handleDelete = async () => {
+    if (!report || !id) return;
+    if (!window.confirm("Delete this resolved report? This cannot be undone.")) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setSaveError("Please log in again."); return; }
+      const { error } = await supabase.from("reports").delete().eq("id", id).eq("user_id", user.id);
+      if (error) throw error;
+      navigate("/my-reports");
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Failed to delete report.");
+    }
+  };
+
   const handleStartEditing =
     () => {
       if (
@@ -1428,8 +1442,14 @@ export default function ReportDetails() {
 
       {currentStatus ===
         "Resolved" && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center text-xs font-semibold text-emerald-800">
-          This waste report has been resolved.
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center text-xs font-semibold text-emerald-800">
+            This waste report has been resolved.
+          </div>
+          <button type="button" onClick={handleDelete} className="flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-black text-rose-700 transition hover:bg-rose-100">
+            <FiTrash2 size={16} />
+            Delete Report
+          </button>
         </div>
       )}
 

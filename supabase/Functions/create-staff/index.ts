@@ -125,7 +125,6 @@ Deno.serve(async (request: Request) => {
       body.contactNumber || ""
     ).trim();
     const teamName = String(body.teamName || "").trim();
-    const position = String(body.position || "").trim();
 
     const password = surname;
 
@@ -286,7 +285,6 @@ Deno.serve(async (request: Request) => {
         email,
         contact_number: contactNumber,
         team_name: teamName,
-        position: position || null,
         account_status: "Active",
         created_by: authenticatedData.user.id,
       });
@@ -313,8 +311,7 @@ Deno.serve(async (request: Request) => {
           email,
           contactNumber,
           teamName,
-          position: position || null,
-        },
+          },
       },
       200
     );

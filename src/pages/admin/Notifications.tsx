@@ -10,7 +10,10 @@ import {
 } from "react-icons/fi";
 import { supabase } from "../../lib/supabase";
 
-export type NotificationType = "status_update" | "admin_message" | "new_report";
+export type NotificationType =
+  | "status_update"
+  | "admin_message"
+  | "new_report";
 
 export interface NotificationRecord {
   id: string;
@@ -31,23 +34,28 @@ export default function AdminNotifications() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [filter, setFilter] = useState<"All" | "Unread">("All");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const loadNotifications = useCallback(
     async (isRefresh = false) => {
       try {
-        if (!isRefresh) {
-          setLoading(true);
-        }
+        if (!isRefresh) setLoading(true);
+
         setErrorMessage("");
 
         const {
           data: { user },
+          error: authError,
         } = await supabase.auth.getUser();
+
+        if (authError) throw authError;
 
         if (!user) {
           navigate("/login");
           return;
         }
+
+        setCurrentUserId(user.id);
 
         const { data, error } = await supabase
           .from("notifications")
@@ -55,18 +63,20 @@ export default function AdminNotifications() {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
 
         setNotifications((data as NotificationRecord[]) || []);
       } catch (error) {
         console.error("Failed to load notifications:", error);
 
         const code = (error as { code?: string } | null)?.code;
-        const details = error instanceof Error ? error.message : String(error ?? "");
+        const details =
+          error instanceof Error ? error.message : String(error ?? "");
 
-        if (code === "PGRST205" || /could not find the table/i.test(details)) {
+        if (
+          code === "PGRST205" ||
+          /could not find the table/i.test(details)
+        ) {
           setErrorMessage(
             "Notifications are not set up on the server yet."
           );
@@ -86,28 +96,104 @@ export default function AdminNotifications() {
     loadNotifications();
   }, [loadNotifications]);
 
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const channel = supabase
+      .channel(`admin-notifications-${currentUserId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${currentUserId}`,
+        },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const newNotification =
+              payload.new as NotificationRecord;
+
+            setNotifications((prev) => {
+              if (prev.some((item) => item.id === newNotification.id)) {
+                return prev;
+              }
+
+              return [newNotification, ...prev].sort(
+                (a, b) =>
+                  new Date(b.created_at).getTime() -
+                  new Date(a.created_at).getTime()
+              );
+            });
+          }
+
+          if (payload.eventType === "UPDATE") {
+            const updatedNotification =
+              payload.new as NotificationRecord;
+
+            setNotifications((prev) =>
+              prev.map((item) =>
+                item.id === updatedNotification.id
+                  ? updatedNotification
+                  : item
+              )
+            );
+          }
+
+          if (payload.eventType === "DELETE") {
+            const deletedNotification = payload.old as {
+              id?: string;
+            };
+
+            if (deletedNotification.id) {
+              setNotifications((prev) =>
+                prev.filter(
+                  (item) => item.id !== deletedNotification.id
+                )
+              );
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") {
+          console.error("Notification Realtime channel error.");
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId]);
+
   const markAsRead = async (id: string) => {
+    if (!currentUserId) return;
+
+    const previousNotifications = notifications;
+
     setNotifications((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, is_read: true } : item))
+      prev.map((item) =>
+        item.id === id ? { ...item, is_read: true } : item
+      )
     );
 
     const { error } = await supabase
       .from("notifications")
       .update({ is_read: true })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", currentUserId);
 
     if (error) {
       console.error("Failed to mark notification as read:", error);
-      await loadNotifications(true);
+      setNotifications(previousNotifications);
+      setErrorMessage("Couldn't update the notification. Please try again.");
     }
   };
 
   const markAllAsRead = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    if (!currentUserId) return;
 
-    if (!user) return;
+    const previousNotifications = notifications;
 
     setNotifications((prev) =>
       prev.map((item) => ({ ...item, is_read: true }))
@@ -116,12 +202,27 @@ export default function AdminNotifications() {
     const { error } = await supabase
       .from("notifications")
       .update({ is_read: true })
-      .eq("user_id", user.id)
+      .eq("user_id", currentUserId)
       .eq("is_read", false);
 
     if (error) {
       console.error("Failed to mark all as read:", error);
-      await loadNotifications(true);
+      setNotifications(previousNotifications);
+      setErrorMessage("Couldn't update your notifications. Please try again.");
+    }
+  };
+
+  const handleNotificationClick = async (
+    item: NotificationRecord
+  ) => {
+    if (!item.is_read) {
+      await markAsRead(item.id);
+    }
+
+    if (item.link_url) {
+      navigate(item.link_url);
+    } else if (item.report_id) {
+      navigate(`/admin/report/${item.report_id}`);
     }
   };
 
@@ -129,7 +230,9 @@ export default function AdminNotifications() {
     filter === "Unread" ? !item.is_read : true
   );
 
-  const unreadCount = notifications.filter((item) => !item.is_read).length;
+  const unreadCount = notifications.filter(
+    (item) => !item.is_read
+  ).length;
 
   const getNotificationIcon = (type: NotificationType) => {
     if (type === "status_update") {
@@ -156,9 +259,10 @@ export default function AdminNotifications() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
+    return new Date(dateString).toLocaleString("en-US", {
       month: "short",
       day: "numeric",
+      year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -187,16 +291,27 @@ export default function AdminNotifications() {
           </div>
         </div>
 
-        {unreadCount > 0 && (
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={markAllAsRead}
-            className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-800 hover:text-emerald-900 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl transition-all"
+            onClick={() => loadNotifications(true)}
+            title="Refresh notifications"
+            className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
           >
-            <FiCheck size={14} />
-            Mark all read
+            <FiRefreshCw size={17} />
           </button>
-        )}
+
+          {unreadCount > 0 && (
+            <button
+              type="button"
+              onClick={markAllAsRead}
+              className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-800 hover:text-emerald-900 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl transition-all"
+            >
+              <FiCheck size={14} />
+              Mark all read
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
@@ -225,22 +340,13 @@ export default function AdminNotifications() {
         </button>
       </div>
 
-      {errorMessage ? (
-        <div className="py-12 text-center">
-          <p className="text-sm font-extrabold text-amber-700">
-            {errorMessage}
-          </p>
-
-          <button
-            type="button"
-            onClick={() => loadNotifications(true)}
-            className="mt-3 inline-flex items-center gap-1.5 text-xs font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-xl hover:bg-emerald-100 transition-all"
-          >
-            <FiRefreshCw size={14} />
-            Retry
-          </button>
+      {errorMessage && (
+        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+          {errorMessage}
         </div>
-      ) : loading ? (
+      )}
+
+      {loading ? (
         <div className="py-12 text-center text-sm font-semibold text-slate-400">
           Loading notifications...
         </div>
@@ -263,13 +369,11 @@ export default function AdminNotifications() {
       ) : (
         <div className="space-y-3">
           {filteredNotifications.map((item) => (
-            <div
+            <button
+              type="button"
               key={item.id}
-              onClick={() => {
-                if (!item.is_read) markAsRead(item.id);
-                if (item.link_url) navigate(item.link_url);
-              }}
-              className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+              onClick={() => handleNotificationClick(item)}
+              className={`w-full text-left p-4 rounded-2xl border transition-all ${
                 !item.is_read
                   ? "bg-emerald-50/40 border-emerald-200 shadow-xs"
                   : "bg-white border-slate-200 hover:border-slate-300"
@@ -298,7 +402,7 @@ export default function AdminNotifications() {
                   <span className="h-2.5 w-2.5 rounded-full bg-emerald-600 shrink-0 mt-1.5" />
                 )}
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}

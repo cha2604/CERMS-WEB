@@ -13,6 +13,7 @@ import AdminDashboard from "../pages/admin/Dashboard";
 import AdminReports from "../pages/admin/Reports";
 import AdminMap from "../pages/admin/Map";
 import AdminReportDetails from "../pages/admin/ReportDetails";
+import CompletionReview from "../pages/admin/CompletionReview";
 import Users from "../pages/admin/Users";
 import StaffAccounts from "../pages/admin/StaffAccounts";
 import Archive from "../pages/admin/Archive";
@@ -23,11 +24,8 @@ import { supabase } from "../lib/supabase";
 function AdminProtectedRoute() {
   const location = useLocation();
 
-  const [checking, setChecking] =
-    useState(true);
-
-  const [authorized, setAuthorized] =
-    useState(false);
+  const [checking, setChecking] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -36,8 +34,7 @@ function AdminProtectedRoute() {
       try {
         const {
           data: { session },
-        } =
-          await supabase.auth.getSession();
+        } = await supabase.auth.getSession();
 
         if (!session?.user) {
           if (mounted) {
@@ -65,16 +62,10 @@ function AdminProtectedRoute() {
           return;
         }
 
-        setAuthorized(
-          profile?.role === "admin"
-        );
-
+        setAuthorized(profile?.role === "admin");
         setChecking(false);
       } catch (error) {
-        console.error(
-          "Failed to verify admin session:",
-          error
-        );
+        console.error("Failed to verify admin session:", error);
 
         if (mounted) {
           setAuthorized(false);
@@ -87,12 +78,9 @@ function AdminProtectedRoute() {
 
     const {
       data: { subscription },
-    } =
-      supabase.auth.onAuthStateChange(
-        () => {
-          checkAdminSession();
-        }
-      );
+    } = supabase.auth.onAuthStateChange(() => {
+      checkAdminSession();
+    });
 
     return () => {
       mounted = false;
@@ -188,6 +176,11 @@ export default function AdminAppRouter() {
           <Route
             path="/report/:id"
             element={<AdminReportDetails />}
+          />
+
+          <Route
+            path="/completion-review/:completionId"
+            element={<CompletionReview />}
           />
         </Route>
       </Route>

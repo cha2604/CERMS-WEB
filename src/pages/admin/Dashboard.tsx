@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import {
   FiArrowRight,
   FiBarChart2,
+  FiCamera,
   FiCheckCircle,
   FiClock,
   FiFileText,
@@ -18,12 +19,7 @@ interface ReportRecord {
   title: string | null;
   waste_type: string | null;
   location_name: string | null;
-  status:
-    | "Pending"
-    | "Ongoing"
-    | "On-going"
-    | "Resolved"
-    | "Rejected";
+  status: string;
   created_at: string;
   profiles?: {
     full_name?: string | null;
@@ -41,36 +37,74 @@ interface ResidentAccount {
   created_at: string;
 }
 
+interface PendingCompletion {
+  id: string;
+  report_id: string;
+  action_taken: string | null;
+  proof_image_url: string;
+  submitted_at: string;
+  verification_status: string;
+  report_title: string;
+  location_name: string | null;
+  team_name: string | null;
+  personnel_name: string | null;
+}
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [reports, setReports] = useState<ReportRecord[]>([]);
-  const [recentResidents, setRecentResidents] = useState<
-    ResidentAccount[]
-  >([]);
+  const [recentResidents, setRecentResidents] = useState<ResidentAccount[]>([]);
+  const [pendingCompletions, setPendingCompletions] = useState<PendingCompletion[]>([]);
   const [totalReports, setTotalReports] = useState(0);
   const [pendingReports, setPendingReports] = useState(0);
   const [ongoingReports, setOngoingReports] = useState(0);
   const [resolvedReports, setResolvedReports] = useState(0);
+  const [pendingVerificationCount, setPendingVerificationCount] = useState(0);
   const [totalWasteWeight, setTotalWasteWeight] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
   const [showOrgChart, setShowOrgChart] = useState(false);
-  const location = useLocation();
 
   useEffect(() => {
     if (location.state?.saveSuccess) {
       setSaveSuccess(location.state.saveSuccess);
-      // Clear the state so it doesn't show again on refresh
       window.history.replaceState({}, document.title);
-      setTimeout(() => setSaveSuccess(""), 5000);
+
+      const timeout = window.setTimeout(() => {
+        setSaveSuccess("");
+      }, 5000);
+
+      return () => window.clearTimeout(timeout);
     }
   }, [location.state]);
 
   useEffect(() => {
     loadDashboard();
+  }, []);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("admin-dashboard-completion-reviews")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "report_completions",
+        },
+        () => {
+          loadDashboard(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const loadDashboard = async (isRefresh = false) => {
@@ -88,6 +122,7 @@ export default function AdminDashboard() {
         recentReportsResponse,
         recentResidentsResponse,
         wasteWeightResponse,
+        pendingCompletionsResponse,
       ] = await Promise.all([
         supabase
           .from("reports")
@@ -116,6 +151,15 @@ export default function AdminDashboard() {
         supabase
           .from("waste_weights")
           .select("weight_kg"),
+
+        supabase
+          .from("report_completions")
+          .select(
+            "id, report_id, action_taken, proof_image_url, submitted_at, verification_status",
+            { count: "exact" }
+          )
+          .eq("verification_status", "Pending Verification")
+          .order("submitted_at", { ascending: false }),
       ]);
 
       if (reportsResponse.error) {
@@ -134,33 +178,49 @@ export default function AdminDashboard() {
         throw wasteWeightResponse.error;
       }
 
-      const reportRows =
-        (reportsResponse.data || []) as ReportRecord[];
+      if (pendingCompletionsResponse.error) {
+        throw pendingCompletionsResponse.error;
+      }
 
-      const recentReportRows =
-        (recentReportsResponse.data || []) as {
-          id: string;
-          title: string | null;
-          waste_type: string | null;
-          location_name: string | null;
-          status: string;
-          created_at: string;
-          profiles?: { full_name?: string | null } | null;
-        }[];
+      const reportRows = reportsResponse.data || [];
+      const recentReportRows = recentReportsResponse.data || [];
 
-      // Fetch assignments separately
-      const reportIds = recentReportRows.map((r) => r.id);
-      const { data: assignmentsData } = await supabase
-        .from("report_assignments")
-        .select("report_id, team_name, personnel_name")
-        .in("report_id", reportIds);
+      const recentReportIds = recentReportRows.map(
+        (report) => report.id
+      );
+
+      let assignmentsData: {
+        report_id: string;
+        team_name: string | null;
+        personnel_name: string | null;
+      }[] = [];
+
+      if (recentReportIds.length > 0) {
+        const {
+          data,
+          error: assignmentsError,
+        } = await supabase
+          .from("report_assignments")
+          .select("report_id, team_name, personnel_name")
+          .in("report_id", recentReportIds);
+
+        if (assignmentsError) {
+          throw assignmentsError;
+        }
+
+        assignmentsData = data || [];
+      }
 
       const assignmentMap = new Map(
-        (assignmentsData || []).map((a) => [a.report_id, a])
+        assignmentsData.map((assignment) => [
+          assignment.report_id,
+          assignment,
+        ])
       );
 
       const mappedReports = recentReportRows.map((report) => {
         const assignment = assignmentMap.get(report.id);
+
         return {
           ...report,
           team_name: assignment?.team_name || null,
@@ -168,9 +228,96 @@ export default function AdminDashboard() {
         };
       }) as ReportRecord[];
 
+      const pendingCompletionRows =
+        pendingCompletionsResponse.data || [];
+
+      const pendingReportIds = [
+        ...new Set(
+          pendingCompletionRows.map(
+            (completion) => completion.report_id
+          )
+        ),
+      ];
+
+      let pendingReportData: {
+        id: string;
+        title: string | null;
+        waste_type: string | null;
+        location_name: string | null;
+      }[] = [];
+
+      let pendingAssignmentData: {
+        report_id: string;
+        team_name: string | null;
+        personnel_name: string | null;
+      }[] = [];
+
+      if (pendingReportIds.length > 0) {
+        const [
+          pendingReportsResponse,
+          pendingAssignmentsResponse,
+        ] = await Promise.all([
+          supabase
+            .from("reports")
+            .select("id, title, waste_type, location_name")
+            .in("id", pendingReportIds),
+
+          supabase
+            .from("report_assignments")
+            .select("report_id, team_name, personnel_name")
+            .in("report_id", pendingReportIds),
+        ]);
+
+        if (pendingReportsResponse.error) {
+          throw pendingReportsResponse.error;
+        }
+
+        if (pendingAssignmentsResponse.error) {
+          throw pendingAssignmentsResponse.error;
+        }
+
+        pendingReportData = pendingReportsResponse.data || [];
+        pendingAssignmentData = pendingAssignmentsResponse.data || [];
+      }
+
+      const pendingReportMap = new Map(
+        pendingReportData.map((report) => [
+          report.id,
+          report,
+        ])
+      );
+
+      const pendingAssignmentMap = new Map(
+        pendingAssignmentData.map((assignment) => [
+          assignment.report_id,
+          assignment,
+        ])
+      );
+
+      const mappedPendingCompletions: PendingCompletion[] =
+        pendingCompletionRows.map((completion) => {
+          const report = pendingReportMap.get(completion.report_id);
+          const assignment = pendingAssignmentMap.get(completion.report_id);
+
+          return {
+            id: completion.id,
+            report_id: completion.report_id,
+            action_taken: completion.action_taken,
+            proof_image_url: completion.proof_image_url,
+            submitted_at: completion.submitted_at,
+            verification_status: completion.verification_status,
+            report_title:
+              report?.waste_type ||
+              report?.title ||
+              "Waste Report",
+            location_name: report?.location_name || null,
+            team_name: assignment?.team_name || null,
+            personnel_name: assignment?.personnel_name || null,
+          };
+        });
+
       const residentRows =
-        (recentResidentsResponse.data ||
-          []) as ResidentAccount[];
+        (recentResidentsResponse.data || []) as ResidentAccount[];
 
       const wasteWeightRows =
         (wasteWeightResponse.data || []) as {
@@ -178,13 +325,14 @@ export default function AdminDashboard() {
         }[];
 
       const totalWeight = wasteWeightRows.reduce(
-        (sum, row) =>
-          sum + Number(row.weight_kg || 0),
+        (sum, row) => sum + Number(row.weight_kg || 0),
         0
       );
 
       setReports(mappedReports);
       setRecentResidents(residentRows);
+      setPendingCompletions(mappedPendingCompletions);
+
       setTotalReports(reportsResponse.count || 0);
 
       setPendingReports(
@@ -207,12 +355,14 @@ export default function AdminDashboard() {
         ).length
       );
 
+      setPendingVerificationCount(
+        pendingCompletionsResponse.count ??
+          pendingCompletionRows.length
+      );
+
       setTotalWasteWeight(totalWeight);
     } catch (error) {
-      console.error(
-        "Failed to load admin dashboard:",
-        error
-      );
+      console.error("Failed to load admin dashboard:", error);
 
       setErrorMessage(
         error instanceof Error
@@ -255,6 +405,16 @@ export default function AdminDashboard() {
       month: "short",
       day: "numeric",
       year: "numeric",
+    });
+
+  const formatDateTime = (value: string) =>
+    new Date(value).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
     });
 
   const formatWeight = (value: number) =>
@@ -364,9 +524,7 @@ export default function AdminDashboard() {
             >
               <FiRefreshCw
                 size={16}
-                className={
-                  refreshing ? "animate-spin" : ""
-                }
+                className={refreshing ? "animate-spin" : ""}
               />
               Refresh
             </button>
@@ -385,7 +543,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
+          <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="h-11 w-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
                 <FiFileText size={20} />
@@ -442,7 +600,7 @@ export default function AdminDashboard() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-orange-200 bg-white p-5 shadow-sm">
               <div className="h-11 w-11 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center">
                 <FiBarChart2 size={20} />
               </div>
@@ -452,10 +610,183 @@ export default function AdminDashboard() {
               </p>
 
               <p className="mt-1 text-2xl font-black text-slate-900">
-                {loading
-                  ? "—"
-                  : formatWeight(totalWasteWeight)}
+                {loading ? "—" : formatWeight(totalWasteWeight)}
               </p>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-violet-200 bg-white shadow-sm overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-4 p-5 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="h-11 w-11 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
+                  <FiCamera size={20} />
+                </div>
+
+                <div>
+                  <h2 className="text-lg font-black text-slate-900">
+                    Pending Staff Completion Reviews
+                  </h2>
+
+                  <p className="text-sm font-medium text-slate-500 mt-1">
+                    Staff completion photos awaiting administrator verification.
+                  </p>
+                </div>
+              </div>
+
+              <span className="rounded-full bg-violet-100 px-3 py-1.5 text-xs font-black text-violet-800">
+                {loading
+                  ? "Loading..."
+                  : `${pendingVerificationCount} Pending`}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50">
+                    <th className="px-5 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">
+                      Report
+                    </th>
+
+                    <th className="px-5 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">
+                      Location
+                    </th>
+
+                    <th className="px-5 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">
+                      Assigned Staff
+                    </th>
+
+                    <th className="px-5 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">
+                      Action Taken
+                    </th>
+
+                    <th className="px-5 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">
+                      Completion Photo
+                    </th>
+
+                    <th className="px-5 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">
+                      Date Submitted
+                    </th>
+
+                    <th className="px-5 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="px-5 py-12 text-center text-sm font-semibold text-slate-500"
+                      >
+                        Loading Staff completion reviews...
+                      </td>
+                    </tr>
+                  ) : pendingCompletions.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="px-5 py-12 text-center"
+                      >
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                          <FiCheckCircle size={24} />
+                        </div>
+
+                        <p className="mt-3 font-black text-slate-700">
+                          No Pending Verification
+                        </p>
+
+                        <p className="mt-1 text-sm font-medium text-slate-500">
+                          New Staff completion submissions will appear here.
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    pendingCompletions.map((completion) => (
+                      <tr
+                        key={completion.id}
+                        className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50"
+                      >
+                        <td className="px-5 py-4">
+                          <p className="font-black text-slate-900">
+                            {completion.report_title}
+                          </p>
+
+                          <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2.5 py-1 text-[10px] font-black text-violet-800">
+                            Pending Verification
+                          </span>
+                        </td>
+
+                        <td className="px-5 py-4 text-sm font-semibold text-slate-700">
+                          <div className="flex items-center gap-1.5">
+                            <FiMapPin
+                              size={14}
+                              className="shrink-0 text-slate-400"
+                            />
+                            {completion.location_name ||
+                              "Barangay Tankulan"}
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <p className="text-sm font-bold text-slate-800">
+                            {completion.personnel_name ||
+                              "Assigned Staff"}
+                          </p>
+
+                          {completion.team_name && (
+                            <p className="mt-1 text-xs font-medium text-slate-500">
+                              {completion.team_name}
+                            </p>
+                          )}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <p className="max-w-xs text-sm font-medium leading-6 text-slate-700">
+                            {completion.action_taken ||
+                              "No action description provided."}
+                          </p>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          {completion.proof_image_url ? (
+                            <img
+                              src={completion.proof_image_url}
+                              alt="Staff completion proof"
+                              className="h-20 w-24 rounded-xl border border-slate-200 object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-20 w-24 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
+                              <FiCamera size={22} />
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="px-5 py-4 text-xs font-semibold text-slate-600 whitespace-nowrap">
+                          {formatDateTime(completion.submitted_at)}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate(
+                                `/completion-review/${completion.id}`
+                              )
+                            }
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-xs font-black text-white transition hover:bg-violet-800"
+                          >
+                            View and Review
+                            <FiArrowRight size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </section>
 
@@ -532,7 +863,9 @@ export default function AdminDashboard() {
                         <tr
                           key={report.id}
                           className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50 cursor-pointer"
-                          onClick={() => navigate(`/report/${report.id}`)}
+                          onClick={() =>
+                            navigate(`/report/${report.id}`)
+                          }
                         >
                           <td className="px-5 py-4">
                             <p className="font-black text-slate-900">
@@ -569,6 +902,7 @@ export default function AdminDashboard() {
                                   {report.personnel_name ||
                                     "Unassigned personnel"}
                                 </div>
+
                                 {report.team_name && (
                                   <p className="text-xs text-slate-500 mt-0.5">
                                     {report.team_name}
@@ -583,9 +917,7 @@ export default function AdminDashboard() {
                           </td>
 
                           <td className="px-5 py-4 text-sm font-semibold text-slate-600 whitespace-nowrap">
-                            {formatDate(
-                              report.created_at
-                            )}
+                            {formatDate(report.created_at)}
                           </td>
                         </tr>
                       ))
@@ -671,9 +1003,7 @@ export default function AdminDashboard() {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    navigate("/waste-weighing")
-                  }
+                  onClick={() => navigate("/waste-weighing")}
                   className="w-full flex items-center justify-between rounded-xl border border-slate-200 px-4 py-4 text-left hover:border-emerald-300 hover:bg-emerald-50 transition-all"
                 >
                   <div className="flex items-center gap-3">
@@ -812,22 +1142,17 @@ export default function AdminDashboard() {
                         </td>
 
                         <td className="px-5 py-4 text-sm font-semibold text-slate-700">
-                          {resident.email ||
-                            "No email"}
+                          {resident.email || "No email"}
                         </td>
 
                         <td className="px-5 py-4 text-sm font-semibold text-slate-700">
                           {resident.address
-                            ? resident.address
-                                .split(",")[0]
-                                .trim()
+                            ? resident.address.split(",")[0].trim()
                             : "—"}
                         </td>
 
                         <td className="px-5 py-4 text-sm font-semibold text-slate-600 whitespace-nowrap">
-                          {formatDate(
-                            resident.created_at
-                          )}
+                          {formatDate(resident.created_at)}
                         </td>
                       </tr>
                     ))

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FiArrowLeft,
@@ -144,12 +144,12 @@ function analyzePictureSeverity(file: File): Promise<SeverityResult> {
           // Combine metrics: higher waste ratio + edge complexity = more severe
           const severityScore = (wasteRatio * 40) + (edgeRatio * 30) + (darkRatio * 20) + ((255 - avgBrightness) / 255 * 10);
 
-          if (severityScore < 25) {
+          if (severityScore < 35) {
             resolve({
               level: "Low",
               explanation: "AI visual scan detected low-density waste with minimal clutter and good lighting conditions.",
             });
-          } else if (severityScore < 50) {
+          } else if (severityScore < 65) {
             resolve({
               level: "Moderate",
               explanation: "AI visual scan detected moderate waste accumulation with noticeable clutter and mixed debris.",
@@ -262,6 +262,8 @@ export default function ReportIssue() {
 
   const [showCamera, setShowCamera] =
     useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const finalIssueType =
     issueType === "Others"
@@ -1322,7 +1324,8 @@ if (!data?.id) {
               </span>
             </button>
 
-            {previews.length >
+            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleCameraCapture(file); e.target.value = ""; }} />
+{previews.length >
               0 && (
               <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {previews.map(

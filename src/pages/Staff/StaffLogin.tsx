@@ -302,6 +302,9 @@ export default function StaffLogin() {
         </form>
 
         <p className="mt-6 text-center text-[11px] font-semibold text-slate-400">
+        <p className="mt-3 text-center text-[11px] font-semibold text-slate-400">
+          New accounts: use your last name as the initial password.
+        </p>
           Staff accounts can only be created by a CERMS administrator.
         </p>
       </div>

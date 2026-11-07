@@ -15,7 +15,6 @@ interface StaffProfile {
   email: string;
   contact_number: string | null;
   team_name: string;
-  position: string | null;
   account_status: string;
   created_at: string;
 }
@@ -33,7 +32,6 @@ const EMPTY_FORM = {
   email: "",
   contactNumber: "",
   teamName: "",
-  position: "",
 };
 
 export default function StaffAccounts() {
@@ -53,7 +51,7 @@ export default function StaffAccounts() {
       const { data, error: loadError } = await supabase
         .from("staff_profiles")
         .select(
-          "id, full_name, username, email, contact_number, team_name, position, account_status, created_at"
+          "id, full_name, username, email, contact_number, team_name, account_status, created_at"
         )
         .order("created_at", { ascending: false });
 
@@ -125,7 +123,6 @@ export default function StaffAccounts() {
             email: form.email.trim().toLowerCase(),
             contactNumber: form.contactNumber,
             teamName: form.teamName,
-            position: form.position.trim(),
           },
         });
 
@@ -310,7 +307,6 @@ export default function StaffAccounts() {
                   <th className="px-5 py-4">Staff</th>
                   <th className="px-5 py-4">Contact</th>
                   <th className="px-5 py-4">Team</th>
-                  <th className="px-5 py-4">Position</th>
                   <th className="px-5 py-4">Status</th>
                   <th className="px-5 py-4">Action</th>
                 </tr>
@@ -342,9 +338,6 @@ export default function StaffAccounts() {
                       {item.team_name}
                     </td>
 
-                    <td className="px-5 py-4 text-xs font-semibold text-slate-600">
-                      {item.position || "Personnel"}
-                    </td>
 
                     <td className="px-5 py-4">
                       <span
@@ -550,23 +543,6 @@ export default function StaffAccounts() {
                 </select>
               </div>
 
-              <div>
-                <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-500">
-                  Position
-                </label>
-                <input
-                  type="text"
-                  value={form.position}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      position: event.target.value,
-                    }))
-                  }
-                  placeholder="Position"
-                  className="w-full rounded-xl border border-slate-300 p-3 text-sm outline-none focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
-                />
-              </div>
 
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800">
                 The staff member's surname will automatically become their

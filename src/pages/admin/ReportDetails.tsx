@@ -15,7 +15,6 @@ import {
 } from "react-leaflet";
 import {
   FiArrowLeft,
-  FiCheckCircle,
   FiClock,
   FiInfo,
   FiMapPin,
@@ -94,18 +93,6 @@ interface StatusHistory {
   changed_at: string;
 }
 
-interface ReportCompletion {
-  id: string;
-  report_id: string;
-  assignment_id: string;
-  staff_id: string;
-  action_taken: string;
-  proof_image_url: string;
-  verification_status: string;
-  verification_note: string | null;
-  submitted_at: string;
-}
-
 interface ExifData {
   dateTaken: string | null;
   device: string | null;
@@ -116,106 +103,50 @@ interface ExifData {
   imageHeight: number | null;
 }
 
-const STATUS_OPTIONS = [
-  {
-    value: "Pending",
-    label: "Pending",
-    helper: "Waiting for initial review",
-  },
-  {
-    value: "Ongoing",
-    label: "Ongoing",
-    helper: "Response team is handling the concern",
-  },
-  {
-    value: "Rejected",
-    label: "Rejected",
-    helper: "Invalid, duplicate, or unsupported report",
-  },
-] as const;
-
-function normalizeStatus(
-  status: string
-) {
-  return status ===
-    "On-going"
-    ? "Ongoing"
-    : status;
+function normalizeStatus(status: string) {
+  return status === "On-going" ? "Ongoing" : status;
 }
 
-function formatDateTime(
-  value?: string | null
-) {
+function formatDateTime(value?: string | null) {
   if (!value) {
     return "—";
   }
 
-  return new Date(
-    value
-  ).toLocaleString(
-    "en-US",
-    {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    }
-  );
+  return new Date(value).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
-function formatDate(
-  value?: string | null
-) {
+function formatDate(value?: string | null) {
   if (!value) {
     return "—";
   }
 
-  return new Date(
-    value
-  ).toLocaleDateString(
-    "en-US",
-    {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    }
-  );
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
-function formatFileName(
-  url: string,
-  index: number
-) {
+function formatFileName(url: string, index: number) {
   try {
-    const parsed =
-      new URL(url);
+    const parsed = new URL(url);
+    const name = parsed.pathname.split("/").pop();
 
-    const name =
-      parsed.pathname
-        .split("/")
-        .pop();
-
-    return (
-      name ||
-      `Photo ${index + 1}`
-    );
+    return name || `Photo ${index + 1}`;
   } catch {
-    return `Photo ${
-      index + 1
-    }`;
+    return `Photo ${index + 1}`;
   }
 }
 
-function getStatusBadgeClass(
-  status: string
-) {
-  switch (
-    normalizeStatus(
-      status
-    )
-  ) {
+function getStatusBadgeClass(status: string) {
+  switch (normalizeStatus(status)) {
     case "Pending":
       return "bg-amber-50 text-amber-800 border-amber-200";
 
@@ -233,15 +164,8 @@ function getStatusBadgeClass(
   }
 }
 
-function getSeverityClass(
-  severity?: string | null
-) {
-  switch (
-    (
-      severity ||
-      ""
-    ).toLowerCase()
-  ) {
+function getSeverityClass(severity?: string | null) {
+  switch ((severity || "").toLowerCase()) {
     case "critical":
       return "bg-red-50 text-red-800 border-red-200";
 
@@ -265,106 +189,64 @@ function calculateDistanceMeters(
   lat2: number,
   lng2: number
 ) {
-  const earthRadius =
-    6371000;
+  const earthRadius = 6371000;
 
-  const dLat =
-    ((lat2 - lat1) *
-      Math.PI) /
-    180;
-
-  const dLng =
-    ((lng2 - lng1) *
-      Math.PI) /
-    180;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
 
   const a =
-    Math.sin(
-      dLat / 2
-    ) **
-      2 +
-    Math.cos(
-      (lat1 *
-        Math.PI) /
-        180
-    ) *
-      Math.cos(
-        (lat2 *
-          Math.PI) /
-          180
-      ) *
-      Math.sin(
-        dLng / 2
-      ) **
-        2;
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
 
   const c =
     2 *
     Math.atan2(
       Math.sqrt(a),
-      Math.sqrt(
-        1 - a
-      )
+      Math.sqrt(1 - a)
     );
 
-  return (
-    earthRadius *
-    c
-  );
+  return earthRadius * c;
 }
 
-async function extractExifFromUrl(
-  url: string
-) {
+async function extractExifFromUrl(url: string) {
   try {
-    const response =
-      await fetch(url);
+    const response = await fetch(url);
 
-    if (
-      !response.ok
-    ) {
+    if (!response.ok) {
       return null;
     }
 
-    const blob =
-      await response.blob();
+    const blob = await response.blob();
+    const fileName = url.split("/").pop() || "photo.jpg";
 
-    const fileName =
-      url
-        .split("/")
-        .pop() ||
-      "photo.jpg";
+    const file = new File(
+      [blob],
+      fileName,
+      {
+        type: blob.type || "image/jpeg",
+      }
+    );
 
-    const file =
-      new File(
-        [blob],
-        fileName,
-        {
-          type:
-            blob.type ||
-            "image/jpeg",
-        }
-      );
-
-    const data =
-      await exifr.parse(
-        file,
-        {
-          gps: true,
-          pick: [
-            "DateTimeOriginal",
-            "Make",
-            "Model",
-            "GPSLatitude",
-            "GPSLongitude",
-            "GPSAltitude",
-            "ExifImageWidth",
-            "ExifImageHeight",
-            "PixelXDimension",
-            "PixelYDimension",
-          ],
-        }
-      );
+    const data = await exifr.parse(
+      file,
+      {
+        gps: true,
+        pick: [
+          "DateTimeOriginal",
+          "Make",
+          "Model",
+          "GPSLatitude",
+          "GPSLongitude",
+          "GPSAltitude",
+          "ExifImageWidth",
+          "ExifImageHeight",
+          "PixelXDimension",
+          "PixelYDimension",
+        ],
+      }
+    );
 
     if (!data) {
       return null;
@@ -375,33 +257,24 @@ async function extractExifFromUrl(
         data.Make,
         data.Model,
       ]
-        .filter(
-          Boolean
-        )
-        .join(" ") ||
-      null;
+        .filter(Boolean)
+        .join(" ") || null;
 
     return {
-      dateTaken:
-        data.DateTimeOriginal
-          ? new Date(
-              data.DateTimeOriginal
-            ).toISOString()
-          : null,
+      dateTaken: data.DateTimeOriginal
+        ? new Date(data.DateTimeOriginal).toISOString()
+        : null,
       device,
       latitude:
-        typeof data.latitude ===
-        "number"
+        typeof data.latitude === "number"
           ? data.latitude
           : null,
       longitude:
-        typeof data.longitude ===
-        "number"
+        typeof data.longitude === "number"
           ? data.longitude
           : null,
       altitude:
-        typeof data.GPSAltitude ===
-        "number"
+        typeof data.GPSAltitude === "number"
           ? data.GPSAltitude
           : null,
       imageWidth:
@@ -419,407 +292,135 @@ async function extractExifFromUrl(
 }
 
 export default function AdminReportDetails() {
-  const { id } =
-    useParams<{
-      id: string;
-    }>();
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
 
-  const navigate =
-    useNavigate();
+  const [report, setReport] = useState<ReportDetail | null>(null);
+  const [assignment, setAssignment] = useState<Assignment | null>(null);
+  const [history, setHistory] = useState<StatusHistory[]>([]);
+  const [staffPersonnel, setStaffPersonnel] = useState<StaffPersonnel[]>([]);
 
-  const [
-    report,
-    setReport,
-  ] =
-    useState<ReportDetail | null>(
-      null
-    );
+  const [loading, setLoading] = useState(true);
+  const [staffLoading, setStaffLoading] = useState(true);
+  const [assignmentLoading, setAssignmentLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
 
-  const [
-    assignment,
-    setAssignment,
-  ] =
-    useState<Assignment | null>(
-      null
-    );
+  const [saveSuccess, setSaveSuccess] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const [
-    history,
-    setHistory,
-  ] =
-    useState<StatusHistory[]>(
-      []
-    );
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [remarksInput, setRemarksInput] = useState("");
 
-  const [
-    completions,
-    setCompletions,
-  ] =
-    useState<ReportCompletion[]>(
-      []
-    );
+  const [teamName, setTeamName] = useState("");
+  const [selectedStaffId, setSelectedStaffId] = useState("");
+  const [assignmentNotes, setAssignmentNotes] = useState("");
 
-  const [
-    staffPersonnel,
-    setStaffPersonnel,
-  ] =
-    useState<StaffPersonnel[]>(
-      []
-    );
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showRejectConfirmation, setShowRejectConfirmation] = useState(false);
 
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(true);
+  const [exifByImage, setExifByImage] = useState<
+    Record<number, ExifData | null>
+  >({});
 
-  const [
-    staffLoading,
-    setStaffLoading,
-  ] =
-    useState(true);
+  const loadHistory = async (reportId: string) => {
+    const { data, error } = await supabase
+      .from("report_status_history")
+      .select(
+        "id, report_id, status, note, changed_by, changed_at"
+      )
+      .eq("report_id", reportId)
+      .order("changed_at", {
+        ascending: true,
+      });
 
-  const [
-    assignmentLoading,
-    setAssignmentLoading,
-  ] =
-    useState(false);
+    if (!error) {
+      setHistory((data || []) as StatusHistory[]);
+    }
+  };
 
-  const [
-    saving,
-    setSaving,
-  ] =
-    useState(false);
+  const loadStaffPersonnel = async () => {
+    try {
+      setStaffLoading(true);
 
-  const [
-    verificationLoading,
-    setVerificationLoading,
-  ] =
-    useState(false);
-
-  const [
-    saveSuccess,
-    setSaveSuccess,
-  ] =
-    useState("");
-
-  const [
-    errorMessage,
-    setErrorMessage,
-  ] =
-    useState("");
-
-  const [
-    statusInput,
-    setStatusInput,
-  ] =
-    useState(
-      "Pending"
-    );
-
-  const [
-    rejectionReason,
-    setRejectionReason,
-  ] =
-    useState("");
-
-  const [
-    remarksInput,
-    setRemarksInput,
-  ] =
-    useState("");
-
-  const [
-    teamName,
-    setTeamName,
-  ] =
-    useState("");
-
-  const [
-    selectedStaffId,
-    setSelectedStaffId,
-  ] =
-    useState("");
-
-  const [
-    assignmentNotes,
-    setAssignmentNotes,
-  ] =
-    useState("");
-
-  const [
-    returnNote,
-    setReturnNote,
-  ] =
-    useState("");
-
-  const [
-    selectedImageIndex,
-    setSelectedImageIndex,
-  ] =
-    useState(0);
-
-  const [
-    selectedImage,
-    setSelectedImage,
-  ] =
-    useState<string | null>(
-      null
-    );
-
-  const [
-    exifByImage,
-    setExifByImage,
-  ] =
-    useState<
-      Record<
-        number,
-        ExifData | null
-      >
-    >({});
-
-  const loadHistory =
-    async (
-      reportId: string
-    ) => {
-      const {
-        data,
-        error,
-      } =
-        await supabase
-          .from(
-            "report_status_history"
-          )
-          .select(
-            "id, report_id, status, note, changed_by, changed_at"
-          )
-          .eq(
-            "report_id",
-            reportId
-          )
-          .order(
-            "changed_at",
-            {
-              ascending:
-                true,
-            }
-          );
-
-      if (!error) {
-        setHistory(
-          (data ||
-            []) as StatusHistory[]
-        );
-      }
-    };
-
-  const loadCompletions =
-    async (
-      reportId: string
-    ) => {
-      const {
-        data,
-        error,
-      } =
-        await supabase
-          .from(
-            "report_completions"
-          )
-          .select(
-            "id, report_id, assignment_id, staff_id, action_taken, proof_image_url, verification_status, verification_note, submitted_at"
-          )
-          .eq(
-            "report_id",
-            reportId
-          )
-          .order(
-            "submitted_at",
-            {
-              ascending:
-                false,
-            }
-          );
+      const { data, error } = await supabase
+        .from("staff_profiles")
+        .select(
+          "id, full_name, username, email, contact_number, team_name, position, account_status"
+        )
+        .order("full_name", {
+          ascending: true,
+        });
 
       if (error) {
-        console.error(
-          "Failed to load completions:",
-          error
-        );
-
-        return;
+        throw error;
       }
 
-      setCompletions(
-        (data ||
-          []) as ReportCompletion[]
+      setStaffPersonnel((data || []) as StaffPersonnel[]);
+    } catch (staffError) {
+      console.error("Failed to load staff personnel:", staffError);
+
+      setErrorMessage(
+        staffError instanceof Error
+          ? staffError.message
+          : "Failed to load staff personnel."
       );
-    };
+    } finally {
+      setStaffLoading(false);
+    }
+  };
 
-  const loadStaffPersonnel =
-    async () => {
-      try {
-        setStaffLoading(
-          true
-        );
+  const loadAssignment = async (reportId: string) => {
+    const { data, error } = await supabase
+      .from("report_assignments")
+      .select(
+        "id, report_id, staff_id, team_name, personnel_name, notes, assigned_by, assigned_at, assignment_status"
+      )
+      .eq("report_id", reportId)
+      .maybeSingle();
 
-        const {
-          data,
-          error,
-        } =
-          await supabase
-            .from(
-              "staff_profiles"
-            )
-            .select(
-              "id, full_name, username, email, contact_number, team_name, position, account_status"
-            )
-            .order(
-              "full_name",
-              {
-                ascending:
-                  true,
-              }
-            );
+    if (error) {
+      console.error("Failed to load assignment:", error);
+      return;
+    }
 
-        if (error) {
-          throw error;
-        }
+    if (data) {
+      const currentAssignment = data as Assignment;
 
-        setStaffPersonnel(
-          (data ||
-            []) as StaffPersonnel[]
-        );
-      } catch (
-        staffError
-      ) {
-        console.error(
-          "Failed to load staff personnel:",
-          staffError
-        );
+      setAssignment(currentAssignment);
+      setTeamName(currentAssignment.team_name || "");
+      setSelectedStaffId(currentAssignment.staff_id || "");
+      setAssignmentNotes(currentAssignment.notes || "");
+    } else {
+      setAssignment(null);
+      setTeamName("");
+      setSelectedStaffId("");
+      setAssignmentNotes("");
+    }
+  };
 
-        setErrorMessage(
-          staffError instanceof
-            Error
-            ? staffError.message
-            : "Failed to load staff personnel."
-        );
-      } finally {
-        setStaffLoading(
-          false
-        );
-      }
-    };
+  const refreshReport = async () => {
+    if (!id) {
+      return;
+    }
 
-  const loadAssignment =
-    async (
-      reportId: string
-    ) => {
-      const {
-        data,
-        error,
-      } =
-        await supabase
-          .from(
-            "report_assignments"
-          )
-          .select(
-            "id, report_id, staff_id, team_name, personnel_name, notes, assigned_by, assigned_at, assignment_status"
-          )
-          .eq(
-            "report_id",
-            reportId
-          )
-          .maybeSingle();
+    const { data, error } = await supabase
+      .from("reports")
+      .select(
+        "*, profiles(full_name, contact_number, email, address)"
+      )
+      .eq("id", id)
+      .single();
 
-      if (error) {
-        console.error(
-          "Failed to load assignment:",
-          error
-        );
+    if (!error && data) {
+      const loaded = data as ReportDetail;
 
-        return;
-      }
-
-      if (data) {
-        const currentAssignment =
-          data as Assignment;
-
-        setAssignment(
-          currentAssignment
-        );
-
-        setTeamName(
-          currentAssignment.team_name ||
-            ""
-        );
-
-        setSelectedStaffId(
-          currentAssignment.staff_id ||
-            ""
-        );
-
-        setAssignmentNotes(
-          currentAssignment.notes ||
-            ""
-        );
-      } else {
-        setAssignment(
-          null
-        );
-      }
-    };
-
-  const refreshReport =
-    async () => {
-      if (!id) {
-        return;
-      }
-
-      const {
-        data,
-        error,
-      } =
-        await supabase
-          .from(
-            "reports"
-          )
-          .select(
-            "*, profiles(full_name, contact_number, email, address)"
-          )
-          .eq(
-            "id",
-            id
-          )
-          .single();
-
-      if (
-        !error &&
-        data
-      ) {
-        const loaded =
-          data as ReportDetail;
-
-        setReport(
-          loaded
-        );
-
-        setStatusInput(
-          normalizeStatus(
-            loaded.status
-          )
-        );
-
-        setRejectionReason(
-          loaded.rejection_reason ||
-            ""
-        );
-
-        setRemarksInput(
-          loaded.remarks ||
-            ""
-        );
-      }
-    };
+      setReport(loaded);
+      setRejectionReason(loaded.rejection_reason || "");
+      setRemarksInput(loaded.remarks || "");
+    }
+  };
 
   useEffect(() => {
     async function fetchReportDetails() {
@@ -828,46 +429,26 @@ export default function AdminReportDetails() {
       }
 
       try {
-        setLoading(
-          true
-        );
-
-        setErrorMessage(
-          ""
-        );
+        setLoading(true);
+        setErrorMessage("");
 
         await refreshReport();
 
         await Promise.all([
-          loadAssignment(
-            id
-          ),
-          loadHistory(
-            id
-          ),
+          loadAssignment(id),
+          loadHistory(id),
           loadStaffPersonnel(),
-          loadCompletions(
-            id
-          ),
         ]);
-      } catch (
-        loadError
-      ) {
-        console.error(
-          "Failed to load report details:",
-          loadError
-        );
+      } catch (loadError) {
+        console.error("Failed to load report details:", loadError);
 
         setErrorMessage(
-          loadError instanceof
-            Error
+          loadError instanceof Error
             ? loadError.message
             : "Failed to load report details."
         );
       } finally {
-        setLoading(
-          false
-        );
+        setLoading(false);
       }
     }
 
@@ -879,792 +460,493 @@ export default function AdminReportDetails() {
       return;
     }
 
-    const channel =
-      supabase
-        .channel(
-          `admin-report-${id}`
-        )
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema:
-              "public",
-            table:
-              "staff_profiles",
-          },
-          () => {
-            loadStaffPersonnel();
-          }
-        )
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema:
-              "public",
-            table:
-              "report_assignments",
-            filter: `report_id=eq.${id}`,
-          },
-          () => {
-            loadAssignment(
-              id
-            );
-          }
-        )
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema:
-              "public",
-            table:
-              "report_completions",
-            filter: `report_id=eq.${id}`,
-          },
-          () => {
-            loadCompletions(
-              id
-            );
-          }
-        )
-        .subscribe();
+    const channel = supabase
+      .channel(`admin-report-${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "staff_profiles",
+        },
+        () => {
+          loadStaffPersonnel();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "report_assignments",
+          filter: `report_id=eq.${id}`,
+        },
+        () => {
+          loadAssignment(id);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "reports",
+          filter: `id=eq.${id}`,
+        },
+        () => {
+          refreshReport();
+        }
+      )
+      .subscribe();
 
     return () => {
-      supabase.removeChannel(
-        channel
-      );
+      supabase.removeChannel(channel);
     };
   }, [id]);
 
   useEffect(() => {
-    const urls =
-      report?.image_urls ||
-      [];
+    const urls = report?.image_urls || [];
 
-    if (
-      urls.length === 0
-    ) {
+    if (urls.length === 0) {
       return;
     }
 
-    let cancelled =
-      false;
+    let cancelled = false;
 
     async function loadExif() {
-      const results =
-        await Promise.all(
-          urls
-            .slice(
-              0,
-              5
-            )
-            .map(
-              async (
-                url,
-                index
-              ) => {
-                const exif =
-                  await extractExifFromUrl(
-                    url
-                  );
+      const results = await Promise.all(
+        urls.slice(0, 5).map(async (url, index) => {
+          const exif = await extractExifFromUrl(url);
 
-                return [
-                  index,
-                  exif,
-                ] as const;
-              }
-            )
-        );
+          return [index, exif] as const;
+        })
+      );
 
-      if (
-        cancelled
-      ) {
+      if (cancelled) {
         return;
       }
 
-      const next: Record<
-        number,
-        ExifData | null
-      > = {};
+      const next: Record<number, ExifData | null> = {};
 
-      for (
-        const [
-          index,
-          exif,
-        ] of results
-      ) {
-        next[
-          index
-        ] = exif;
+      for (const [index, exif] of results) {
+        next[index] = exif;
       }
 
-      setExifByImage(
-        next
-      );
+      setExifByImage(next);
     }
 
     loadExif();
 
     return () => {
-      cancelled =
-        true;
+      cancelled = true;
     };
-  }, [
-    report?.image_urls,
-  ]);
+  }, [report?.image_urls]);
 
-  const images =
-    report?.image_urls ||
-    [];
+  const images = report?.image_urls || [];
+  const mainImage = images[selectedImageIndex] || null;
+  const selectedExif = exifByImage[selectedImageIndex] || null;
 
-  const mainImage =
-    images[
-      selectedImageIndex
-    ] ||
-    null;
-
-  const selectedExif =
-    exifByImage[
-      selectedImageIndex
-    ] ||
-    null;
-
-  const availableTeams =
-    useMemo(() => {
-      return Array.from(
-        new Set(
-          staffPersonnel
-            .map(
-              (
-                staff
-              ) =>
-                staff.team_name?.trim()
-            )
-            .filter(
-              (
-                team
-              ): team is string =>
-                Boolean(
-                  team
-                )
-            )
-        )
-      ).sort();
-    }, [
-      staffPersonnel,
-    ]);
-
-  const teamPersonnel =
-    useMemo(() => {
-      if (
-        !teamName
-      ) {
-        return [];
-      }
-
-      return staffPersonnel.filter(
-        (
-          staff
-        ) =>
-          staff.team_name ===
-          teamName
-      );
-    }, [
-      staffPersonnel,
-      teamName,
-    ]);
-
-  const selectedStaff =
-    useMemo(() => {
-      return (
-        staffPersonnel.find(
-          (
-            staff
-          ) =>
-            staff.id ===
-            selectedStaffId
-        ) ||
-        null
-      );
-    }, [
-      staffPersonnel,
-      selectedStaffId,
-    ]);
-
-  const activeTeamPersonnel =
-    useMemo(() => {
-      return teamPersonnel.filter(
-        (
-          staff
-        ) =>
-          staff.account_status ===
-          "Active"
-      );
-    }, [
-      teamPersonnel,
-    ]);
-
-  const timeline =
-    useMemo(() => {
-      const submittedEvent: StatusHistory =
-        {
-          id: `submitted-${
-            report?.id ||
-            "report"
-          }`,
-          report_id:
-            report?.id ||
-            "",
-          status:
-            "Submitted",
-          note:
-            "Report submitted by resident",
-          changed_by:
-            report?.user_id ||
-            null,
-          changed_at:
-            report?.created_at ||
-            new Date().toISOString(),
-        };
-
-      return [
-        submittedEvent,
-        ...history,
-      ];
-    }, [
-      history,
-      report,
-    ]);
-
-  const exifDifference =
-    useMemo(() => {
-      if (
-        report?.latitude ===
-          null ||
-        report?.longitude ===
-          null ||
-        report?.latitude ===
-          undefined ||
-        report?.longitude ===
-          undefined ||
-        selectedExif?.latitude ===
-          null ||
-        selectedExif?.longitude ===
-          null ||
-        selectedExif?.latitude ===
-          undefined ||
-        selectedExif?.longitude ===
-          undefined
-      ) {
-        return null;
-      }
-
-      return calculateDistanceMeters(
-        report.latitude,
-        report.longitude,
-        selectedExif.latitude,
-        selectedExif.longitude
-      );
-    }, [
-      report,
-      selectedExif,
-    ]);
-
-  const handleTeamChange =
-    (
-      nextTeam: string
-    ) => {
-      setTeamName(
-        nextTeam
-      );
-
-      if (
-        assignment?.staff_id &&
-        assignment.team_name ===
-          nextTeam
-      ) {
-        setSelectedStaffId(
-          assignment.staff_id
-        );
-      } else {
-        setSelectedStaffId(
-          ""
-        );
-      }
-    };
-
-  const handlePersonnelSelect =
-    (
-      staff: StaffPersonnel
-    ) => {
-      if (
-        staff.account_status !==
-        "Active"
-      ) {
-        return;
-      }
-
-      setSelectedStaffId(
-        staff.id
-      );
-    };
-
-  const handleAssignTeam =
-    async () => {
-      if (!id) {
-        return;
-      }
-
-      if (
-        !teamName
-      ) {
-        setErrorMessage(
-          "Please select a response team."
-        );
-
-        return;
-      }
-
-      if (
-        !selectedStaff
-      ) {
-        setErrorMessage(
-          "Please select an active staff member."
-        );
-
-        return;
-      }
-
-      if (
-        selectedStaff.account_status !==
-        "Active"
-      ) {
-        setErrorMessage(
-          "Inactive staff accounts cannot be assigned."
-        );
-
-        return;
-      }
-
-      try {
-        setAssignmentLoading(
-          true
-        );
-
-        setErrorMessage(
-          ""
-        );
-
-        setSaveSuccess(
-          ""
-        );
-
-        const {
-          data: {
-            user,
-          },
-        } =
-          await supabase.auth.getUser();
-
-        if (!user) {
-          throw new Error(
-            "Your admin session could not be verified."
-          );
-        }
-
-        const {
-          data,
-          error,
-        } =
-          await supabase
-            .from(
-              "report_assignments"
-            )
-            .upsert(
-              {
-                report_id:
-                  id,
-                staff_id:
-                  selectedStaff.id,
-                team_name:
-                  selectedStaff.team_name,
-                personnel_name:
-                  selectedStaff.full_name,
-                notes:
-                  assignmentNotes.trim() ||
-                  null,
-                assigned_by:
-                  user.id,
-                assigned_at:
-                  new Date().toISOString(),
-                assignment_status:
-                  "Assigned",
-              },
-              {
-                onConflict:
-                  "report_id",
-              }
-            )
-            .select()
-            .single();
-
-        if (error) {
-          throw error;
-        }
-
-        setAssignment(
-          data as Assignment
-        );
-
-        await supabase
-          .from(
-            "report_status_history"
+  const availableTeams = useMemo(() => {
+    return Array.from(
+      new Set(
+        staffPersonnel
+          .map((staff) => staff.team_name?.trim())
+          .filter(
+            (team): team is string => Boolean(team)
           )
+      )
+    ).sort();
+  }, [staffPersonnel]);
+
+  const teamPersonnel = useMemo(() => {
+    if (!teamName) {
+      return [];
+    }
+
+    return staffPersonnel.filter(
+      (staff) => staff.team_name === teamName
+    );
+  }, [staffPersonnel, teamName]);
+
+  const selectedStaff = useMemo(() => {
+    return (
+      staffPersonnel.find(
+        (staff) => staff.id === selectedStaffId
+      ) || null
+    );
+  }, [staffPersonnel, selectedStaffId]);
+
+  const activeTeamPersonnel = useMemo(() => {
+    return teamPersonnel.filter(
+      (staff) => staff.account_status === "Active"
+    );
+  }, [teamPersonnel]);
+
+  const timeline = useMemo(() => {
+    const submittedEvent: StatusHistory = {
+      id: `submitted-${report?.id || "report"}`,
+      report_id: report?.id || "",
+      status: "Submitted",
+      note: "Report submitted by resident",
+      changed_by: report?.user_id || null,
+      changed_at: report?.created_at || new Date().toISOString(),
+    };
+
+    return [submittedEvent, ...history];
+  }, [history, report]);
+
+  const exifDifference = useMemo(() => {
+    if (
+      report?.latitude === null ||
+      report?.longitude === null ||
+      report?.latitude === undefined ||
+      report?.longitude === undefined ||
+      selectedExif?.latitude === null ||
+      selectedExif?.longitude === null ||
+      selectedExif?.latitude === undefined ||
+      selectedExif?.longitude === undefined
+    ) {
+      return null;
+    }
+
+    return calculateDistanceMeters(
+      report.latitude,
+      report.longitude,
+      selectedExif.latitude,
+      selectedExif.longitude
+    );
+  }, [report, selectedExif]);
+
+  const handleTeamChange = (nextTeam: string) => {
+    setTeamName(nextTeam);
+
+    if (
+      assignment?.staff_id &&
+      assignment.team_name === nextTeam
+    ) {
+      setSelectedStaffId(assignment.staff_id);
+    } else {
+      setSelectedStaffId("");
+    }
+  };
+
+  const handlePersonnelSelect = (staff: StaffPersonnel) => {
+    if (staff.account_status !== "Active") {
+      return;
+    }
+
+    setSelectedStaffId(staff.id);
+  };
+
+  const handleAssignTeam = async () => {
+    if (!id || !report) {
+      return;
+    }
+
+    const currentStatus = normalizeStatus(report.status);
+
+    if (
+      currentStatus === "Rejected" ||
+      currentStatus === "Resolved"
+    ) {
+      setErrorMessage(
+        "Rejected or resolved reports cannot be assigned."
+      );
+      return;
+    }
+
+    if (!teamName) {
+      setErrorMessage("Please select a response team.");
+      return;
+    }
+
+    if (!selectedStaff) {
+      setErrorMessage("Please select an active staff member.");
+      return;
+    }
+
+    if (selectedStaff.account_status !== "Active") {
+      setErrorMessage("Inactive staff accounts cannot be assigned.");
+      return;
+    }
+
+    try {
+      setAssignmentLoading(true);
+      setErrorMessage("");
+      setSaveSuccess("");
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error(
+          "Your admin session could not be verified."
+        );
+      }
+
+      const { data, error } = await supabase
+        .from("report_assignments")
+        .upsert(
+          {
+            report_id: id,
+            staff_id: selectedStaff.id,
+            team_name: selectedStaff.team_name,
+            personnel_name: selectedStaff.full_name,
+            notes: assignmentNotes.trim() || null,
+            assigned_by: user.id,
+            assigned_at: new Date().toISOString(),
+            assignment_status: "Assigned",
+          },
+          {
+            onConflict: "report_id",
+          }
+        )
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setAssignment(data as Assignment);
+
+      const { error: reportUpdateError } = await supabase
+        .from("reports")
+        .update({
+          status: "Ongoing",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .not("status", "in", '("Rejected","Resolved")');
+
+      if (reportUpdateError) {
+        throw reportUpdateError;
+      }
+
+      const { error: historyError } = await supabase
+        .from("report_status_history")
+        .insert({
+          report_id: id,
+          status: "Ongoing",
+          note: `Report assigned to ${selectedStaff.team_name} - ${selectedStaff.full_name}. Report status automatically changed to Ongoing.`,
+          changed_by: user.id,
+        });
+
+      if (historyError) {
+        throw historyError;
+      }
+
+      await Promise.all([
+        refreshReport(),
+        loadAssignment(id),
+        loadHistory(id),
+      ]);
+
+      setSaveSuccess(
+        `${selectedStaff.full_name} has been assigned successfully. Report status is now Ongoing.`
+      );
+    } catch (assignError) {
+      console.error(
+        "Failed to assign response team:",
+        assignError
+      );
+
+      setErrorMessage(
+        assignError instanceof Error
+          ? assignError.message
+          : "Failed to assign response team."
+      );
+    } finally {
+      setAssignmentLoading(false);
+    }
+  };
+
+  const handleSaveChanges = async () => {
+    if (!id || !report) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setErrorMessage("");
+      setSaveSuccess("");
+
+      const { error } = await supabase
+        .from("reports")
+        .update({
+          remarks: remarksInput.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (error) {
+        throw error;
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user && remarksInput.trim() !== (report.remarks || "")) {
+        const { error: historyError } = await supabase
+          .from("report_status_history")
           .insert({
-            report_id:
-              id,
-            status:
-              normalizeStatus(
-                report?.status ||
-                  "Pending"
-              ),
-            note:
-              `Assigned to ${selectedStaff.team_name} - ${selectedStaff.full_name}`,
-            changed_by:
-              user.id,
+            report_id: id,
+            status: normalizeStatus(report.status),
+            note: remarksInput.trim()
+              ? `Administrator updated case remarks: ${remarksInput.trim()}`
+              : "Administrator cleared the case remarks.",
+            changed_by: user.id,
           });
 
-        await loadHistory(
-          id
-        );
-
-        setSaveSuccess(
-          `${selectedStaff.full_name} has been assigned successfully.`
-        );
-      } catch (
-        assignError
-      ) {
-        console.error(
-          "Failed to assign response team:",
-          assignError
-        );
-
-        setErrorMessage(
-          assignError instanceof
-            Error
-            ? assignError.message
-            : "Failed to assign response team."
-        );
-      } finally {
-        setAssignmentLoading(
-          false
-        );
-      }
-    };
-
-  const confirmResolution =
-    async (
-      completionId: string
-    ) => {
-      if (!id) {
-        return;
-      }
-
-      try {
-        setVerificationLoading(
-          true
-        );
-
-        setErrorMessage(
-          ""
-        );
-
-        setSaveSuccess(
-          ""
-        );
-
-        const {
-          error,
-        } =
-          await supabase.rpc(
-            "admin_verify_completion",
-            {
-              p_completion_id:
-                completionId,
-            }
-          );
-
-        if (error) {
-          throw error;
+        if (historyError) {
+          throw historyError;
         }
-
-        setSaveSuccess(
-          "Resolution confirmed. The report is now officially Resolved."
-        );
-
-        await Promise.all([
-          refreshReport(),
-          loadAssignment(
-            id
-          ),
-          loadHistory(
-            id
-          ),
-          loadCompletions(
-            id
-          ),
-        ]);
-      } catch (
-        confirmError
-      ) {
-        console.error(
-          "Failed to confirm resolution:",
-          confirmError
-        );
-
-        setErrorMessage(
-          confirmError instanceof
-            Error
-            ? confirmError.message
-            : "Unable to confirm resolution."
-        );
-      } finally {
-        setVerificationLoading(
-          false
-        );
-      }
-    };
-
-  const returnForAction =
-    async (
-      completionId: string
-    ) => {
-      if (!id) {
-        return;
       }
 
-      if (
-        !returnNote.trim()
-      ) {
-        setErrorMessage(
-          "Please provide a reason for returning this completion."
-        );
+      await Promise.all([
+        refreshReport(),
+        loadHistory(id),
+      ]);
 
-        return;
-      }
-
-      try {
-        setVerificationLoading(
-          true
-        );
-
-        setErrorMessage(
-          ""
-        );
-
-        setSaveSuccess(
-          ""
-        );
-
-        const {
-          error,
-        } =
-          await supabase.rpc(
-            "admin_return_completion",
-            {
-              p_completion_id:
-                completionId,
-              p_verification_note:
-                returnNote.trim(),
-            }
-          );
-
-        if (error) {
-          throw error;
-        }
-
-        setReturnNote(
-          ""
-        );
-
-        setSaveSuccess(
-          "The completion was returned to the staff for additional action."
-        );
-
-        await Promise.all([
-          refreshReport(),
-          loadAssignment(
-            id
-          ),
-          loadHistory(
-            id
-          ),
-          loadCompletions(
-            id
-          ),
-        ]);
-      } catch (
-        returnError
-      ) {
-        console.error(
-          "Failed to return completion:",
-          returnError
-        );
-
-        setErrorMessage(
-          returnError instanceof
-            Error
-            ? returnError.message
-            : "Unable to return completion."
-        );
-      } finally {
-        setVerificationLoading(
-          false
-        );
-      }
-    };
-
-  const handleSaveChanges =
-    async () => {
-      if (
-        !id ||
-        !report
-      ) {
-        return;
-      }
-
-      try {
-        setSaving(
-          true
-        );
-
-        setErrorMessage(
-          ""
-        );
-
-        setSaveSuccess(
-          ""
-        );
-
-        if (
-          statusInput ===
-            "Rejected" &&
-          !rejectionReason.trim()
-        ) {
-          throw new Error(
-            "Please provide a reason for rejection."
-          );
-        }
-
-        const previousStatus =
-          normalizeStatus(
-            report.status
-          );
-
-        const nextStatus =
-          normalizeStatus(
-            statusInput
-          );
-
-        const {
-          error,
-        } =
-          await supabase
-            .from(
-              "reports"
-            )
-            .update({
-              status:
-                nextStatus,
-              remarks:
-                remarksInput.trim() ||
-                null,
-              rejection_reason:
-                nextStatus ===
-                "Rejected"
-                  ? rejectionReason.trim()
-                  : null,
-              updated_at:
-                new Date().toISOString(),
-            })
-            .eq(
-              "id",
-              id
-            );
-
-        if (error) {
-          throw error;
-        }
-
-        const {
-          data: {
-            user,
-          },
-        } =
-          await supabase.auth.getUser();
-
-        if (
-          previousStatus !==
-            nextStatus &&
-          user
-        ) {
-          await supabase
-            .from(
-              "report_status_history"
-            )
-            .insert({
-              report_id:
-                id,
-              status:
-                nextStatus,
-              note:
-                nextStatus ===
-                "Rejected"
-                  ? rejectionReason.trim()
-                  : remarksInput.trim() ||
-                    null,
-              changed_by:
-                user.id,
-            });
-        }
-
-        await Promise.all([
-          refreshReport(),
-          loadHistory(
-            id
-          ),
-        ]);
-
-        setSaveSuccess(
-          "Report details updated successfully."
-        );
-      } catch (
+      setSaveSuccess("Case remarks saved successfully.");
+    } catch (saveError) {
+      console.error(
+        "Failed to save case remarks:",
         saveError
-      ) {
-        console.error(
-          "Failed to update report:",
-          saveError
-        );
+      );
 
-        setErrorMessage(
-          saveError instanceof
-            Error
-            ? saveError.message
-            : "Failed to update report."
-        );
-      } finally {
-        setSaving(
-          false
+      setErrorMessage(
+        saveError instanceof Error
+          ? saveError.message
+          : "Failed to save case remarks."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRejectReport = async () => {
+    if (!id || !report) {
+      return;
+    }
+
+    if (normalizeStatus(report.status) !== "Pending" || assignment) {
+      setErrorMessage(
+        "Only unassigned Pending reports can be rejected. This report can no longer be rejected."
+      );
+      setShowRejectConfirmation(false);
+      return;
+    }
+
+    if (!rejectionReason.trim()) {
+      setErrorMessage("Please provide a reason for rejecting this report.");
+      return;
+    }
+
+    try {
+      setRejecting(true);
+      setErrorMessage("");
+      setSaveSuccess("");
+
+      const {
+        data: latestReport,
+        error: latestReportError,
+      } = await supabase
+        .from("reports")
+        .select("id, status")
+        .eq("id", id)
+        .single();
+
+      if (latestReportError) {
+        throw latestReportError;
+      }
+
+      if (normalizeStatus(latestReport.status) !== "Pending") {
+        throw new Error(
+          "This report is no longer Pending and cannot be rejected."
         );
       }
-    };
 
-  const handlePrint =
-    () => {
-      window.print();
-    };
+      const {
+        data: rejectedReport,
+        error: rejectError,
+      } = await supabase
+        .from("reports")
+        .update({
+          status: "Rejected",
+          rejection_reason: rejectionReason.trim(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .eq("status", "Pending")
+        .select("id")
+        .maybeSingle();
+
+      if (rejectError) {
+        throw rejectError;
+      }
+
+      if (!rejectedReport) {
+        throw new Error(
+          "The report status has changed. Refresh the page and try again."
+        );
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error(
+          "Your admin session could not be verified."
+        );
+      }
+
+      const { error: historyError } = await supabase
+        .from("report_status_history")
+        .insert({
+          report_id: id,
+          status: "Rejected",
+          note: rejectionReason.trim(),
+          changed_by: user.id,
+        });
+
+      if (historyError) {
+        throw historyError;
+      }
+
+      setShowRejectConfirmation(false);
+
+      await Promise.all([
+        refreshReport(),
+        loadHistory(id),
+        loadAssignment(id),
+      ]);
+
+      setSaveSuccess(
+        "Report rejected successfully."
+      );
+    } catch (rejectError) {
+      console.error(
+        "Failed to reject report:",
+        rejectError
+      );
+
+      setErrorMessage(
+        rejectError instanceof Error
+          ? rejectError.message
+          : "Failed to reject report."
+      );
+    } finally {
+      setRejecting(false);
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   if (loading) {
     return (
@@ -1692,25 +974,23 @@ export default function AdminReportDetails() {
     );
   }
 
+  const currentStatus = normalizeStatus(report.status);
+  const canReject =
+    currentStatus === "Pending" && !assignment;
+  const isRejected = currentStatus === "Rejected";
+  const isResolved = currentStatus === "Resolved";
+
   const reporterName =
-    report.profiles
-      ?.full_name ||
-    "Unknown Resident";
+    report.profiles?.full_name || "Unknown Resident";
 
   const reporterContact =
-    report.profiles
-      ?.contact_number ||
-    "Not provided";
+    report.profiles?.contact_number || "Not provided";
 
   const reporterEmail =
-    report.profiles
-      ?.email ||
-    "Not provided";
+    report.profiles?.email || "Not provided";
 
   const reporterAddress =
-    report.profiles
-      ?.address ||
-    "Not provided";
+    report.profiles?.address || "Not provided";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -1718,11 +998,7 @@ export default function AdminReportDetails() {
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
           <button
             type="button"
-            onClick={() =>
-              navigate(
-                "/reports"
-              )
-            }
+            onClick={() => navigate("/reports")}
             className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-xs font-black text-slate-700"
           >
             <FiArrowLeft />
@@ -1735,16 +1011,12 @@ export default function AdminReportDetails() {
                 report.status
               )}`}
             >
-              {normalizeStatus(
-                report.status
-              )}
+              {currentStatus}
             </span>
 
             <button
               type="button"
-              onClick={
-                handlePrint
-              }
+              onClick={handlePrint}
               className="flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2 text-xs font-black text-white"
             >
               <FiPrinter />
@@ -1767,6 +1039,30 @@ export default function AdminReportDetails() {
           </div>
         )}
 
+        {isRejected && (
+          <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5">
+            <h2 className="font-black text-rose-900">
+              Report Rejected
+            </h2>
+
+            <p className="mt-2 text-sm font-medium leading-6 text-rose-800">
+              {report.rejection_reason || "No rejection reason recorded."}
+            </p>
+          </section>
+        )}
+
+        {isResolved && (
+          <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+            <h2 className="font-black text-emerald-900">
+              Report Resolved
+            </h2>
+
+            <p className="mt-2 text-sm font-medium text-emerald-800">
+              This report has already been verified and resolved.
+            </p>
+          </section>
+        )}
+
         <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-6">
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -1783,10 +1079,7 @@ export default function AdminReportDetails() {
                   </h1>
 
                   <p className="mt-2 text-xs font-semibold text-slate-500">
-                    Submitted{" "}
-                    {formatDateTime(
-                      report.created_at
-                    )}
+                    Submitted {formatDateTime(report.created_at)}
                   </p>
                 </div>
 
@@ -1795,9 +1088,7 @@ export default function AdminReportDetails() {
                     report.severity
                   )}`}
                 >
-                  Severity:{" "}
-                  {report.severity ||
-                    "Not assessed"}
+                  Severity: {report.severity || "Not assessed"}
                 </span>
               </div>
 
@@ -1807,8 +1098,7 @@ export default function AdminReportDetails() {
                 </p>
 
                 <p className="mt-2 text-sm leading-7 text-slate-700">
-                  {report.description ||
-                    "No description provided."}
+                  {report.description || "No description provided."}
                 </p>
               </div>
             </section>
@@ -1829,52 +1119,43 @@ export default function AdminReportDetails() {
               </div>
 
               <p className="mt-4 text-sm font-bold text-slate-800">
-                {report.location_name ||
-                  "Location unavailable"}
+                {report.location_name || "Location unavailable"}
               </p>
 
-              {typeof report.latitude ===
-                "number" &&
-              typeof report.longitude ===
-                "number" && (
-                <div className="mt-4 h-[360px] overflow-hidden rounded-2xl border border-slate-200">
-                  <MapContainer
-                    center={[
-                      report.latitude,
-                      report.longitude,
-                    ]}
-                    zoom={17}
-                    scrollWheelZoom={
-                      false
-                    }
-                    style={{
-                      width:
-                        "100%",
-                      height:
-                        "100%",
-                    }}
-                  >
-                    <TileLayer
-                      attribution='&copy; OpenStreetMap'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
-
-                    <CircleMarker
+              {typeof report.latitude === "number" &&
+                typeof report.longitude === "number" && (
+                  <div className="mt-4 h-[360px] overflow-hidden rounded-2xl border border-slate-200">
+                    <MapContainer
                       center={[
                         report.latitude,
                         report.longitude,
                       ]}
-                      radius={12}
+                      zoom={17}
+                      scrollWheelZoom={false}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                      }}
                     >
-                      <Popup>
-                        {
-                          report.location_name
-                        }
-                      </Popup>
-                    </CircleMarker>
-                  </MapContainer>
-                </div>
-              )}
+                      <TileLayer
+                        attribution="&copy; OpenStreetMap"
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      />
+
+                      <CircleMarker
+                        center={[
+                          report.latitude,
+                          report.longitude,
+                        ]}
+                        radius={12}
+                      >
+                        <Popup>
+                          {report.location_name}
+                        </Popup>
+                      </CircleMarker>
+                    </MapContainer>
+                  </div>
+                )}
             </section>
 
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -1882,65 +1163,38 @@ export default function AdminReportDetails() {
                 Submitted Photos
               </h2>
 
-              {images.length >
-              0 ? (
+              {images.length > 0 ? (
                 <>
                   <button
                     type="button"
-                    onClick={() =>
-                      setSelectedImage(
-                        mainImage
-                      )
-                    }
+                    onClick={() => setSelectedImage(mainImage)}
                     className="mt-4 block w-full overflow-hidden rounded-2xl"
                   >
                     <img
-                      src={
-                        mainImage ||
-                        ""
-                      }
+                      src={mainImage || ""}
                       alt="Evidence"
-                      className="h-[360px] w-full object-contain bg-slate-900"
+                      className="h-[360px] w-full bg-slate-900 object-contain"
                     />
                   </button>
 
                   <div className="mt-3 grid grid-cols-5 gap-2">
-                    {images
-                      .slice(
-                        0,
-                        5
-                      )
-                      .map(
-                        (
-                          image,
-                          index
-                        ) => (
-                          <button
-                            type="button"
-                            key={
-                              image
-                            }
-                            onClick={() =>
-                              setSelectedImageIndex(
-                                index
-                              )
-                            }
-                            className={`overflow-hidden rounded-xl border-2 ${
-                              selectedImageIndex ===
-                              index
-                                ? "border-emerald-700"
-                                : "border-slate-200"
-                            }`}
-                          >
-                            <img
-                              src={
-                                image
-                              }
-                              className="h-16 w-full object-cover"
-                            />
-                          </button>
-                        )
-                      )}
+                    {images.slice(0, 5).map((image, index) => (
+                      <button
+                        type="button"
+                        key={image}
+                        onClick={() => setSelectedImageIndex(index)}
+                        className={`overflow-hidden rounded-xl border-2 ${
+                          selectedImageIndex === index
+                            ? "border-emerald-700"
+                            : "border-slate-200"
+                        }`}
+                      >
+                        <img
+                          src={image}
+                          className="h-16 w-full object-cover"
+                        />
+                      </button>
+                    ))}
                   </div>
 
                   <div className="mt-4 rounded-2xl bg-slate-50 p-4">
@@ -1950,8 +1204,7 @@ export default function AdminReportDetails() {
 
                     <p className="mt-1 text-xs font-bold text-slate-700">
                       {formatFileName(
-                        mainImage ||
-                          "",
+                        mainImage || "",
                         selectedImageIndex
                       )}
                     </p>
@@ -1964,9 +1217,7 @@ export default function AdminReportDetails() {
 
                         <p className="mt-1 font-semibold text-slate-700">
                           {selectedExif?.dateTaken
-                            ? formatDateTime(
-                                selectedExif.dateTaken
-                              )
+                            ? formatDateTime(selectedExif.dateTaken)
                             : "Not available"}
                         </p>
                       </div>
@@ -1977,21 +1228,15 @@ export default function AdminReportDetails() {
                         </p>
 
                         <p className="mt-1 font-semibold text-slate-700">
-                          {selectedExif?.device ||
-                            "Not available"}
+                          {selectedExif?.device || "Not available"}
                         </p>
                       </div>
                     </div>
 
-                    {exifDifference !==
-                      null && (
+                    {exifDifference !== null && (
                       <div className="mt-4 rounded-xl bg-blue-50 p-3">
                         <p className="text-xs font-black text-blue-800">
-                          Photo GPS is{" "}
-                          {Math.round(
-                            exifDifference
-                          )}{" "}
-                          meters from the report pin.
+                          Photo GPS is {Math.round(exifDifference)} meters from the report pin.
                         </p>
                       </div>
                     )}
@@ -2023,9 +1268,7 @@ export default function AdminReportDetails() {
                   </p>
 
                   <p className="mt-1 font-bold text-slate-800">
-                    {
-                      reporterName
-                    }
+                    {reporterName}
                   </p>
                 </div>
 
@@ -2035,9 +1278,7 @@ export default function AdminReportDetails() {
                   </p>
 
                   <p className="mt-1 font-bold text-slate-800">
-                    {
-                      reporterContact
-                    }
+                    {reporterContact}
                   </p>
                 </div>
 
@@ -2047,9 +1288,7 @@ export default function AdminReportDetails() {
                   </p>
 
                   <p className="mt-1 font-bold text-slate-800">
-                    {
-                      reporterEmail
-                    }
+                    {reporterEmail}
                   </p>
                 </div>
 
@@ -2059,9 +1298,7 @@ export default function AdminReportDetails() {
                   </p>
 
                   <p className="mt-1 font-bold text-slate-800">
-                    {
-                      reporterAddress
-                    }
+                    {reporterAddress}
                   </p>
                 </div>
 
@@ -2071,145 +1308,103 @@ export default function AdminReportDetails() {
                   </p>
 
                   <p className="mt-1 font-bold text-slate-800">
-                    {formatDate(
-                      report.created_at
-                    )}
+                    {formatDate(report.created_at)}
                   </p>
                 </div>
               </div>
             </section>
 
-            <section className="rounded-3xl border border-emerald-200 bg-white shadow-sm">
-              <div className="rounded-t-3xl bg-emerald-50 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">
-                      Response Assignment
-                    </p>
+            {(currentStatus === "Pending" ||
+              currentStatus === "Ongoing") && (
+              <section className="rounded-3xl border border-emerald-200 bg-white shadow-sm">
+                <div className="rounded-t-3xl bg-emerald-50 p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                        Response Assignment
+                      </p>
 
-                    <h2 className="mt-1 font-black text-slate-900">
-                      Assign Personnel
-                    </h2>
+                      <h2 className="mt-1 font-black text-slate-900">
+                        Assign Personnel
+                      </h2>
+                    </div>
+
+                    <FiUsers className="text-emerald-700" />
+                  </div>
+                </div>
+
+                <div className="space-y-5 p-6">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-slate-500">
+                      Assigned Team
+                    </label>
+
+                    <select
+                      value={teamName}
+                      onChange={(event) =>
+                        handleTeamChange(event.target.value)
+                      }
+                      className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm"
+                    >
+                      <option value="">
+                        Select Team
+                      </option>
+
+                      {availableTeams.map((team) => (
+                        <option
+                          key={team}
+                          value={team}
+                        >
+                          {team}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  <FiUsers className="text-emerald-700" />
-                </div>
-              </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-slate-500">
+                      Assigned Personnel
+                    </label>
 
-              <div className="space-y-5 p-6">
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-500">
-                    Assigned Team
-                  </label>
-
-                  <select
-                    value={
-                      teamName
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      handleTeamChange(
-                        event
-                          .target
-                          .value
-                      )
-                    }
-                    className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm"
-                  >
-                    <option value="">
-                      Select Team
-                    </option>
-
-                    {availableTeams.map(
-                      (
-                        team
-                      ) => (
-                        <option
-                          key={
-                            team
-                          }
-                          value={
-                            team
-                          }
-                        >
-                          {
-                            team
-                          }
-                        </option>
-                      )
-                    )}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-500">
-                    Assigned Personnel
-                  </label>
-
-                  <div className="mt-2 space-y-2 rounded-xl bg-slate-50 p-3">
-                    {staffLoading ? (
-                      <p className="text-xs text-slate-400">
-                        Loading personnel...
-                      </p>
-                    ) : !teamName ? (
-                      <p className="text-xs text-slate-400">
-                        Select a team first.
-                      </p>
-                    ) : teamPersonnel.length ===
-                      0 ? (
-                      <p className="text-xs text-slate-400">
-                        No personnel under this team.
-                      </p>
-                    ) : (
-                      teamPersonnel.map(
-                        (
-                          staff
-                        ) => {
-                          const active =
-                            staff.account_status ===
-                            "Active";
-
-                          const selected =
-                            staff.id ===
-                            selectedStaffId;
+                    <div className="mt-2 space-y-2 rounded-xl bg-slate-50 p-3">
+                      {staffLoading ? (
+                        <p className="text-xs text-slate-400">
+                          Loading personnel...
+                        </p>
+                      ) : !teamName ? (
+                        <p className="text-xs text-slate-400">
+                          Select a team first.
+                        </p>
+                      ) : teamPersonnel.length === 0 ? (
+                        <p className="text-xs text-slate-400">
+                          No personnel under this team.
+                        </p>
+                      ) : (
+                        teamPersonnel.map((staff) => {
+                          const active = staff.account_status === "Active";
+                          const selected = staff.id === selectedStaffId;
 
                           return (
                             <button
                               type="button"
-                              key={
-                                staff.id
-                              }
-                              disabled={
-                                !active
-                              }
-                              onClick={() =>
-                                handlePersonnelSelect(
-                                  staff
-                                )
-                              }
+                              key={staff.id}
+                              disabled={!active}
+                              onClick={() => handlePersonnelSelect(staff)}
                               className={`flex w-full items-center justify-between rounded-xl border p-3 text-left ${
                                 selected
                                   ? "border-emerald-500 bg-emerald-50"
                                   : active
-                                  ? "border-slate-200 bg-white"
-                                  : "cursor-not-allowed border-slate-200 bg-slate-100 opacity-60"
+                                    ? "border-slate-200 bg-white"
+                                    : "cursor-not-allowed border-slate-200 bg-slate-100 opacity-60"
                               }`}
                             >
                               <div>
                                 <p className="text-sm font-black text-slate-800">
-                                  {
-                                    staff.full_name
-                                  }
+                                  {staff.full_name}
                                 </p>
 
                                 <p className="text-[10px] text-slate-500">
-                                  {staff.position ||
-                                    "Personnel"}{" "}
-                                  • @
-                                  {
-                                    staff.username
-                                  }
+                                  {staff.position || "Personnel"} • @{staff.username}
                                 </p>
                               </div>
 
@@ -2220,288 +1415,84 @@ export default function AdminReportDetails() {
                                     : "bg-slate-200 text-slate-500"
                                 }`}
                               >
-                                {
-                                  staff.account_status
-                                }
+                                {staff.account_status}
                               </span>
                             </button>
                           );
-                        }
-                      )
-                    )}
+                        })
+                      )}
+                    </div>
+
+                    {teamName &&
+                      activeTeamPersonnel.length === 0 &&
+                      teamPersonnel.length > 0 && (
+                        <p className="mt-2 text-xs font-bold text-rose-600">
+                          No active personnel available in this team.
+                        </p>
+                      )}
                   </div>
 
-                  {teamName &&
-                    activeTeamPersonnel.length ===
-                      0 &&
-                    teamPersonnel.length >
-                      0 && (
-                      <p className="mt-2 text-xs font-bold text-rose-600">
-                        No active personnel available in this team.
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-slate-500">
+                      Assignment Notes
+                    </label>
+
+                    <textarea
+                      rows={3}
+                      value={assignmentNotes}
+                      onChange={(event) =>
+                        setAssignmentNotes(event.target.value)
+                      }
+                      className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm"
+                      placeholder="Instructions for staff..."
+                    />
+                  </div>
+
+                  {assignment && (
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                      <p className="text-xs font-black text-blue-900">
+                        Currently Assigned
                       </p>
-                    )}
-                </div>
 
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-500">
-                    Assignment Notes
-                  </label>
+                      <p className="mt-1 text-sm font-bold text-blue-800">
+                        {assignment.personnel_name}
+                      </p>
 
-                  <textarea
-                    rows={3}
-                    value={
-                      assignmentNotes
+                      <p className="text-xs text-blue-700">
+                        {assignment.team_name}
+                      </p>
+
+                      <p className="mt-2 text-[10px] font-semibold text-blue-600">
+                        Assignment Status: {assignment.assignment_status}
+                      </p>
+
+                      <p className="mt-1 text-[10px] font-semibold text-blue-600">
+                        Report Status: {currentStatus}
+                      </p>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleAssignTeam}
+                    disabled={
+                      assignmentLoading ||
+                      !selectedStaff ||
+                      selectedStaff.account_status !== "Active"
                     }
-                    onChange={(
-                      event
-                    ) =>
-                      setAssignmentNotes(
-                        event
-                          .target
-                          .value
-                      )
-                    }
-                    className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm"
-                    placeholder="Instructions for staff..."
-                  />
-                </div>
+                    className="w-full rounded-xl bg-emerald-700 py-3 text-sm font-black text-white disabled:opacity-50"
+                  >
+                    {assignmentLoading
+                      ? "Assigning..."
+                      : assignment
+                        ? "Update Assignment"
+                        : "Assign Personnel"}
+                  </button>
 
-                {assignment && (
-                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-                    <p className="text-xs font-black text-blue-900">
-                      Currently Assigned
+                  {!assignment && currentStatus === "Pending" && (
+                    <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs font-semibold leading-5 text-blue-800">
+                      Assigning personnel will automatically change the report status to Ongoing.
                     </p>
-
-                    <p className="mt-1 text-sm font-bold text-blue-800">
-                      {
-                        assignment.personnel_name
-                      }
-                    </p>
-
-                    <p className="text-xs text-blue-700">
-                      {
-                        assignment.team_name
-                      }
-                    </p>
-
-                    <p className="mt-2 text-[10px] font-semibold text-blue-600">
-                      Status:{" "}
-                      {
-                        assignment.assignment_status
-                      }
-                    </p>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={
-                    handleAssignTeam
-                  }
-                  disabled={
-                    assignmentLoading ||
-                    !selectedStaff ||
-                    selectedStaff.account_status !==
-                      "Active"
-                  }
-                  className="w-full rounded-xl bg-emerald-700 py-3 text-sm font-black text-white disabled:opacity-50"
-                >
-                  {assignmentLoading
-                    ? "Assigning..."
-                    : assignment
-                    ? "Update Assignment"
-                    : "Assign Personnel"}
-                </button>
-              </div>
-            </section>
-
-            {completions.length >
-              0 && (
-              <section className="rounded-3xl border border-violet-200 bg-white shadow-sm">
-                <div className="rounded-t-3xl bg-violet-50 p-6">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-violet-700">
-                    Completion Verification
-                  </p>
-
-                  <h2 className="mt-1 font-black text-slate-900">
-                    Staff Completion Proof
-                  </h2>
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    Compare the original report photo with the staff completion evidence.
-                  </p>
-                </div>
-
-                <div className="space-y-6 p-6">
-                  {completions.map(
-                    (
-                      completion
-                    ) => {
-                      const pending =
-                        completion.verification_status ===
-                          "Pending Verification" ||
-                        completion.verification_status ===
-                          "For Verification";
-
-                      return (
-                        <div
-                          key={
-                            completion.id
-                          }
-                          className="rounded-2xl border border-slate-200 p-4"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span
-                              className={`rounded-full px-3 py-1 text-[10px] font-black ${
-                                completion.verification_status ===
-                                "Verified"
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : completion.verification_status ===
-                                    "Returned"
-                                  ? "bg-rose-100 text-rose-700"
-                                  : "bg-violet-100 text-violet-700"
-                              }`}
-                            >
-                              {
-                                completion.verification_status
-                              }
-                            </span>
-
-                            <span className="text-[10px] text-slate-400">
-                              {formatDateTime(
-                                completion.submitted_at
-                              )}
-                            </span>
-                          </div>
-
-                          <div className="mt-4">
-                            <p className="text-[10px] font-black uppercase text-slate-400">
-                              Action Taken
-                            </p>
-
-                            <p className="mt-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-                              {
-                                completion.action_taken
-                              }
-                            </p>
-                          </div>
-
-                          <div className="mt-5 grid gap-4 md:grid-cols-2">
-                            <div>
-                              <p className="mb-2 text-xs font-black text-slate-500">
-                                BEFORE
-                              </p>
-
-                              {report.image_urls?.[0] ? (
-                                <img
-                                  src={
-                                    report.image_urls[0]
-                                  }
-                                  alt="Before"
-                                  className="h-56 w-full rounded-xl object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-56 items-center justify-center rounded-xl bg-slate-100 text-xs text-slate-400">
-                                  No before photo
-                                </div>
-                              )}
-
-                              <p className="mt-2 text-center text-xs font-bold text-slate-500">
-                                Resident Report
-                              </p>
-                            </div>
-
-                            <div>
-                              <p className="mb-2 text-xs font-black text-emerald-600">
-                                AFTER
-                              </p>
-
-                              <img
-                                src={
-                                  completion.proof_image_url
-                                }
-                                alt="After"
-                                className="h-56 w-full rounded-xl object-cover"
-                              />
-
-                              <p className="mt-2 text-center text-xs font-bold text-emerald-700">
-                                Staff Completion
-                              </p>
-                            </div>
-                          </div>
-
-                          {completion.verification_note && (
-                            <div className="mt-4 rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700">
-                              {
-                                completion.verification_note
-                              }
-                            </div>
-                          )}
-
-                          {pending && (
-                            <div className="mt-5 border-t border-slate-200 pt-5">
-                              <label className="text-[10px] font-black uppercase text-slate-500">
-                                Return Reason
-                              </label>
-
-                              <textarea
-                                rows={3}
-                                value={
-                                  returnNote
-                                }
-                                onChange={(
-                                  event
-                                ) =>
-                                  setReturnNote(
-                                    event
-                                      .target
-                                      .value
-                                  )
-                                }
-                                placeholder="Explain what still needs to be done..."
-                                className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm"
-                              />
-
-                              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                                <button
-                                  type="button"
-                                  disabled={
-                                    verificationLoading
-                                  }
-                                  onClick={() =>
-                                    returnForAction(
-                                      completion.id
-                                    )
-                                  }
-                                  className="rounded-xl border border-rose-300 py-3 text-xs font-black text-rose-700 hover:bg-rose-50 disabled:opacity-50"
-                                >
-                                  Return for Action
-                                </button>
-
-                                <button
-                                  type="button"
-                                  disabled={
-                                    verificationLoading
-                                  }
-                                  onClick={() =>
-                                    confirmResolution(
-                                      completion.id
-                                    )
-                                  }
-                                  className="flex items-center justify-center gap-2 rounded-xl bg-emerald-700 py-3 text-xs font-black text-white hover:bg-emerald-800 disabled:opacity-50"
-                                >
-                                  <FiCheckCircle />
-
-                                  {verificationLoading
-                                    ? "Processing..."
-                                    : "Confirm Resolution"}
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
                   )}
                 </div>
               </section>
@@ -2523,52 +1514,36 @@ export default function AdminReportDetails() {
               </div>
 
               <div className="mt-5 space-y-5">
-                {timeline.map(
-                  (
-                    event,
-                    index
-                  ) => (
-                    <div
-                      key={
-                        event.id
-                      }
-                      className="relative pl-7"
-                    >
-                      {index <
-                        timeline.length -
-                          1 && (
-                        <span className="absolute bottom-[-20px] left-[7px] top-5 w-px bg-slate-200" />
-                      )}
+                {timeline.map((event, index) => (
+                  <div
+                    key={event.id}
+                    className="relative pl-7"
+                  >
+                    {index < timeline.length - 1 && (
+                      <span className="absolute bottom-[-20px] left-[7px] top-5 w-px bg-slate-200" />
+                    )}
 
-                      <span className="absolute left-0 top-1.5 h-4 w-4 rounded-full border-4 border-violet-500 bg-white" />
+                    <span className="absolute left-0 top-1.5 h-4 w-4 rounded-full border-4 border-violet-500 bg-white" />
 
-                      <p className="text-xs font-black text-slate-900">
-                        {
-                          event.status
-                        }
+                    <p className="text-xs font-black text-slate-900">
+                      {event.status}
+                    </p>
+
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      {formatDateTime(event.changed_at)}
+                    </p>
+
+                    {event.note && (
+                      <p className="mt-1 text-xs text-slate-600">
+                        {event.note}
                       </p>
-
-                      <p className="mt-1 text-[10px] text-slate-400">
-                        {formatDateTime(
-                          event.changed_at
-                        )}
-                      </p>
-
-                      {event.note && (
-                        <p className="mt-1 text-xs text-slate-600">
-                          {
-                            event.note
-                          }
-                        </p>
-                      )}
-                    </div>
-                  )
-                )}
+                    )}
+                  </div>
+                ))}
               </div>
             </section>
 
-            {report.status !==
-              "Resolved" && (
+            {!isResolved && !isRejected && (
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <p className="text-[10px] font-black uppercase text-emerald-700">
                   Barangay Action
@@ -2579,122 +1554,62 @@ export default function AdminReportDetails() {
                 </h2>
 
                 <div className="mt-5">
-                  <label className="text-[10px] font-black uppercase text-slate-500">
-                    Report Status
-                  </label>
-
-                  <select
-                    value={
-                      statusInput ===
-                      "Resolved"
-                        ? "Ongoing"
-                        : statusInput
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      setStatusInput(
-                        event
-                          .target
-                          .value
-                      )
-                    }
-                    className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm"
+                  <label
+                    htmlFor="case-remarks"
+                    className="text-[10px] font-black uppercase text-slate-500"
                   >
-                    {STATUS_OPTIONS.map(
-                      (
-                        option
-                      ) => (
-                        <option
-                          key={
-                            option.value
-                          }
-                          value={
-                            option.value
-                          }
-                        >
-                          {
-                            option.label
-                          }{" "}
-                          —{" "}
-                          {
-                            option.helper
-                          }
-                        </option>
-                      )
-                    )}
-                  </select>
-                </div>
-
-                {statusInput ===
-                  "Rejected" && (
-                  <div className="mt-4">
-                    <label className="text-[10px] font-black uppercase text-rose-600">
-                      Rejection Reason
-                    </label>
-
-                    <textarea
-                      rows={3}
-                      value={
-                        rejectionReason
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        setRejectionReason(
-                          event
-                            .target
-                            .value
-                        )
-                      }
-                      className="mt-2 w-full rounded-xl border border-rose-200 p-3 text-sm"
-                    />
-                  </div>
-                )}
-
-                <div className="mt-4">
-                  <label className="text-[10px] font-black uppercase text-slate-500">
                     Remarks
                   </label>
 
                   <textarea
+                    id="case-remarks"
                     rows={4}
-                    value={
-                      remarksInput
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      setRemarksInput(
-                        event
-                          .target
-                          .value
-                      )
+                    value={remarksInput}
+                    onChange={(event) =>
+                      setRemarksInput(event.target.value)
                     }
                     className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm"
+                    placeholder="Add remarks or additional case information..."
                   />
                 </div>
 
                 <button
                   type="button"
-                  disabled={
-                    saving
-                  }
-                  onClick={
-                    handleSaveChanges
-                  }
+                  disabled={saving}
+                  onClick={handleSaveChanges}
                   className="mt-5 w-full rounded-xl bg-emerald-800 py-3 text-sm font-black text-white disabled:opacity-50"
                 >
-                  {saving
-                    ? "Saving..."
-                    : "Save Case Updates"}
+                  {saving ? "Saving..." : "Save Case"}
                 </button>
 
-                <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-3">
-                  <p className="text-xs font-bold text-violet-700">
-                    A report can only become Resolved after staff submits completion proof and the administrator clicks Confirm Resolution.
-                  </p>
-                </div>
+                {canReject && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setErrorMessage("");
+                      setShowRejectConfirmation(true);
+                    }}
+                    className="mt-3 w-full rounded-xl border border-rose-300 bg-white py-3 text-sm font-black text-rose-700 transition hover:bg-rose-50"
+                  >
+                    Reject Report
+                  </button>
+                )}
+
+                {currentStatus === "Ongoing" && (
+                  <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3">
+                    <p className="text-xs font-bold leading-5 text-blue-800">
+                      This report is already Ongoing. Rejection is no longer available. The assigned Staff must handle the report and submit completion evidence for Admin verification.
+                    </p>
+                  </div>
+                )}
+
+                {currentStatus === "Pending" && assignment && (
+                  <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-xs font-bold leading-5 text-amber-800">
+                      This report already has an assignment. Rejection is unavailable.
+                    </p>
+                  </div>
+                )}
               </section>
             )}
           </div>
@@ -2703,39 +1618,87 @@ export default function AdminReportDetails() {
 
       {selectedImage && (
         <div
-          onClick={() =>
-            setSelectedImage(
-              null
-            )
-          }
+          onClick={() => setSelectedImage(null)}
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 p-4"
         >
           <button
             type="button"
-            onClick={() =>
-              setSelectedImage(
-                null
-              )
-            }
+            onClick={() => setSelectedImage(null)}
             className="absolute right-5 top-5 text-white"
           >
-            <FiX
-              size={25}
-            />
+            <FiX size={25} />
           </button>
 
           <img
-            src={
-              selectedImage
-            }
+            src={selectedImage}
             alt="Evidence"
             className="max-h-[90vh] max-w-[95vw] rounded-xl object-contain"
-            onClick={(
-              event
-            ) =>
-              event.stopPropagation()
-            }
+            onClick={(event) => event.stopPropagation()}
           />
+        </div>
+      )}
+
+      {showRejectConfirmation && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 text-rose-700">
+              <FiXCircle size={28} />
+            </div>
+
+            <h2 className="mt-4 text-center text-xl font-black text-slate-900">
+              Reject This Report?
+            </h2>
+
+            <p className="mt-3 text-center text-sm font-medium leading-6 text-slate-500">
+              Are you sure you want to reject this report? This action will mark the report as Rejected.
+            </p>
+
+            <div className="mt-5">
+              <label
+                htmlFor="rejection-reason"
+                className="text-xs font-black uppercase tracking-wider text-rose-700"
+              >
+                Rejection Reason
+              </label>
+
+              <textarea
+                id="rejection-reason"
+                value={rejectionReason}
+                onChange={(event) =>
+                  setRejectionReason(event.target.value)
+                }
+                rows={4}
+                maxLength={1000}
+                placeholder="Explain why this report is being rejected..."
+                disabled={rejecting}
+                className="mt-2 w-full rounded-xl border border-rose-200 p-4 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 disabled:bg-slate-50"
+              />
+
+              <p className="mt-1 text-right text-[10px] text-slate-400">
+                {rejectionReason.length}/1000
+              </p>
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={rejecting}
+                onClick={() => setShowRejectConfirmation(false)}
+                className="rounded-xl border border-slate-200 py-3 text-sm font-black text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={rejecting || !rejectionReason.trim()}
+                onClick={handleRejectReport}
+                className="rounded-xl bg-rose-700 py-3 text-sm font-black text-white hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {rejecting ? "Rejecting..." : "Yes, Reject Report"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
