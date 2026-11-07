@@ -1,13 +1,10 @@
-
 import { useEffect } from "react";
 import UserAppRouter from "./routes/ResidentAppRouter";
 import AdminAppRouter from "./routes/AdminAppRouter";
 import StaffAppRouter from "./routes/StaffApprouter";
+import { PreferencesProvider } from "./context/PreferencesContext";
 
-function normalizeDomain(
-  value: string | undefined,
-  fallback: string
-) {
+function normalizeDomain(value: string | undefined, fallback: string) {
   return (value || fallback)
     .trim()
     .toLowerCase()
@@ -33,14 +30,18 @@ const STAFF_DOMAIN = normalizeDomain(
 
 function RedirectToUserDomain() {
   useEffect(() => {
+    const port = window.location.port
+      ? `:${window.location.port}`
+      : "";
+
     window.location.replace(
-      `http://${USER_DOMAIN}:5173/login`
+      `${window.location.protocol}//${USER_DOMAIN}${port}/login`
     );
   }, []);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <p className="text-sm font-semibold text-slate-500">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+      <p className="text-sm font-semibold text-slate-500 dark:text-slate-300">
         Redirecting to the resident portal...
       </p>
     </div>
@@ -48,25 +49,21 @@ function RedirectToUserDomain() {
 }
 
 export default function App() {
-  const hostname = window.location.hostname
-    .trim()
-    .toLowerCase();
+  const hostname = window.location.hostname.trim().toLowerCase();
 
-  if (hostname === ADMIN_DOMAIN) {
-    return <AdminAppRouter />;
-  }
-
-  if (hostname === STAFF_DOMAIN) {
-    return <StaffAppRouter />;
-  }
-
-  if (hostname === USER_DOMAIN) {
-    return <UserAppRouter />;
-  }
-
-  if (hostname === "localhost") {
-    return <RedirectToUserDomain />;
-  }
-
-  return <UserAppRouter />;
+  return (
+    <PreferencesProvider>
+      {hostname === ADMIN_DOMAIN ? (
+        <AdminAppRouter />
+      ) : hostname === STAFF_DOMAIN ? (
+        <StaffAppRouter />
+      ) : hostname === USER_DOMAIN ? (
+        <UserAppRouter />
+      ) : hostname === "localhost" ? (
+        <RedirectToUserDomain />
+      ) : (
+        <UserAppRouter />
+      )}
+    </PreferencesProvider>
+  );
 }

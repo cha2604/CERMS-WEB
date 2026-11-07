@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
 import {
@@ -12,66 +13,83 @@ import {
   FiBell,
 } from "react-icons/fi";
 import { supabase } from "../../lib/supabase";
-
-const NAV_ITEMS = [
-  { label: "Dashboard", icon: FiHome, to: "/dashboard" },
-  { label: "Reports", icon: FiFileText, to: "/my-reports" },
-  { label: "Draft Reports", icon: FiEdit3, to: "/drafts" },
-  { label: "History", icon: FiClock, to: "/history" },
-  { label: "Profile", icon: FiUser, to: "/profile" },
-];
+import PreferencesControls from "../../components/PreferencesControls";
+import { usePreferences } from "../../context/PreferencesContext";
 
 export default function ResidentLayout() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = usePreferences();
+
   const [profileName, setProfileName] = useState<string>("");
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
+  const NAV_ITEMS = [
+    { label: "dashboard", icon: FiHome, to: "/dashboard" },
+    { label: "reports", icon: FiFileText, to: "/my-reports" },
+    { label: "draftReports", icon: FiEdit3, to: "/drafts" },
+    { label: "history", icon: FiClock, to: "/history" },
+    { label: "profile", icon: FiUser, to: "/profile" },
+  ];
+
   useEffect(() => {
+    let mounted = true;
+
     async function loadData() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (user) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", user.id)
-          .single();
+      if (!user || !mounted) return;
 
-        if (data?.full_name) {
-          setProfileName(data.full_name);
-        }
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .single();
 
-        const { count } = await supabase
-          .from("notifications")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("is_read", false);
+      if (mounted && data?.full_name) {
+        setProfileName(data.full_name);
+      }
 
+      const { count } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_read", false);
+
+      if (mounted) {
         setUnreadCount(count || 0);
       }
     }
 
     loadData();
+
+    return () => {
+      mounted = false;
+    };
+  }, [location.pathname]);
+
+  useEffect(() => {
+    setIsDrawerOpen(false);
   }, [location.pathname]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans flex flex-col relative">
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-        <div className="flex items-center gap-4">
+      <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 sticky top-0 z-30 shadow-sm">
+        <div className="flex items-center gap-3 sm:gap-4">
           <button
             type="button"
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
             className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all focus:outline-none"
             title="Toggle Navigation Menu"
+            aria-label="Toggle Navigation Menu"
           >
             <FiMenu size={22} />
           </button>
@@ -87,23 +105,31 @@ export default function ResidentLayout() {
           </div>
         </div>
 
-        <Link
-          to="/notifications"
-          className="relative p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all"
-          title="Notifications"
-        >
-          <FiBell size={20} />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-5 w-5 bg-rose-500 text-white rounded-full text-[10px] font-black flex items-center justify-center border-2 border-white">
-              {unreadCount}
-            </span>
-          )}
-        </Link>
+        <div className="flex items-center gap-2">
+          <PreferencesControls />
+
+          <Link
+            to="/notifications"
+            className="relative p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all"
+            title={t("notifications")}
+            aria-label={t("notifications")}
+          >
+            <FiBell size={20} />
+
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-5 w-5 bg-rose-500 text-white rounded-full text-[10px] font-black flex items-center justify-center border-2 border-white">
+                {unreadCount}
+              </span>
+            )}
+          </Link>
+        </div>
       </header>
 
       {isDrawerOpen && (
-        <div
+        <button
+          type="button"
           onClick={() => setIsDrawerOpen(false)}
+          aria-label="Close navigation menu"
           className="fixed inset-0 bg-black/40 backdrop-blur-xs z-40 transition-opacity"
         />
       )}
@@ -128,7 +154,7 @@ export default function ResidentLayout() {
                 </h2>
 
                 <p className="text-[11px] text-emerald-900 font-bold">
-                  Barangay Tankulan
+                  {t("barangayTankulan")}
                 </p>
               </div>
             </div>
@@ -137,6 +163,7 @@ export default function ResidentLayout() {
               type="button"
               onClick={() => setIsDrawerOpen(false)}
               className="p-2 rounded-xl text-slate-600 hover:bg-emerald-200/50 transition-all"
+              aria-label="Close menu"
             >
               <FiX size={20} />
             </button>
@@ -159,7 +186,7 @@ export default function ResidentLayout() {
                   }`}
                 >
                   <Icon size={20} />
-                  <span>{item.label}</span>
+                  <span>{t(item.label)}</span>
                 </Link>
               );
             })}
@@ -169,7 +196,7 @@ export default function ResidentLayout() {
         <div className="pt-6 border-t border-emerald-200/60 space-y-4">
           <div className="bg-white/60 rounded-2xl p-3.5 border border-emerald-200/80">
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Logged in as
+              {t("loggedInAs")}
             </p>
 
             <p className="text-sm font-black text-slate-900 truncate">
@@ -183,7 +210,7 @@ export default function ResidentLayout() {
             className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-sm transition-all"
           >
             <FiLogOut size={16} />
-            <span>Sign Out</span>
+            <span>{t("signOut")}</span>
           </button>
         </div>
       </aside>
