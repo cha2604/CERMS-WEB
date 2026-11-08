@@ -413,7 +413,7 @@ export default function StaffAccounts() {
             <form onSubmit={createStaff} className="mt-6 space-y-4">
               <div>
                 <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-500">
-                  Full Name
+                  First Name
                 </label>
                 <input
                   type="text"
@@ -424,7 +424,7 @@ export default function StaffAccounts() {
                       fullName: event.target.value,
                     }))
                   }
-                  placeholder="Full Name"
+                  placeholder="First Name"
                   className="w-full rounded-xl border border-slate-300 p-3 text-sm outline-none focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
                 />
               </div>

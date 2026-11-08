@@ -1,3 +1,4 @@
+
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -20,12 +21,88 @@ function jsonResponse(
   });
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  ) {
+    return value as Record<string, unknown>;
+  }
+
+  return {};
+}
+
+function getString(
+  source: Record<string, unknown>,
+  keys: string[]
+): string {
+  for (const key of keys) {
+    const value = source[key];
+
+    if (value !== undefined && value !== null) {
+      const result = String(value).trim();
+
+      if (result) {
+        return result;
+      }
+    }
+  }
+
+  return "";
+}
+
+function getErrorMessage(error: unknown): string {
+  if (typeof error === "string" && error.trim()) {
+    return error.trim();
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error !== null) {
+    const record = error as Record<string, unknown>;
+
+    const parts = [
+      record.message,
+      record.details,
+      record.hint,
+      record.error,
+      record.code ? `Code: ${record.code}` : "",
+    ].filter(
+      (value): value is string =>
+        typeof value === "string" &&
+        value.trim().length > 0
+    );
+
+    if (parts.length > 0) {
+      return parts.join(" | ");
+    }
+
+    if (record.cause && record.cause !== error) {
+      return getErrorMessage(record.cause);
+    }
+
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return "An unknown error occurred while creating the staff account.";
+    }
+  }
+
+  return "An unknown error occurred while creating the staff account.";
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") {
     return new Response("ok", {
       headers: corsHeaders,
     });
   }
+
+  let createdStaffId: string | null = null;
+  let adminClient: ReturnType<typeof createClient> | null = null;
 
   try {
     if (request.method !== "POST") {
@@ -43,7 +120,7 @@ Deno.serve(async (request: Request) => {
 
     if (!supabaseUrl || !anonKey || !serviceRoleKey) {
       throw new Error(
-        "Supabase function environment is incomplete."
+        "Supabase function environment is incomplete. Check your Supabase function secrets."
       );
     }
 
@@ -81,7 +158,7 @@ Deno.serve(async (request: Request) => {
       );
     }
 
-    const adminClient = createClient(
+    adminClient = createClient(
       supabaseUrl,
       serviceRoleKey,
       {
@@ -111,39 +188,104 @@ Deno.serve(async (request: Request) => {
       );
     }
 
-    const body = await request.json();
+    let parsedBody: unknown;
 
-    const fullName = String(body.fullName || "").trim();
-    const surname = String(body.surname || "").trim();
-    const username = String(body.username || "")
-      .trim()
-      .toLowerCase();
-    const email = String(body.email || "")
-      .trim()
-      .toLowerCase();
-    const contactNumber = String(
-      body.contactNumber || ""
-    ).trim();
-    const teamName = String(body.teamName || "").trim();
+    try {
+      parsedBody = await request.json();
+    } catch {
+      throw new Error("Invalid request body.");
+    }
 
-    const password = surname;
+    const outerBody = asRecord(parsedBody);
+    const nestedBody = asRecord(outerBody.body);
+    const nestedData = asRecord(outerBody.data);
+    const nestedStaff = asRecord(outerBody.staff);
 
-    if (
-      !fullName ||
-      !surname ||
-      !username ||
-      !email ||
-      !contactNumber ||
-      !teamName
-    ) {
+    const body =
+      Object.keys(nestedStaff).length > 0
+        ? nestedStaff
+        : Object.keys(nestedBody).length > 0
+          ? nestedBody
+          : Object.keys(nestedData).length > 0
+            ? nestedData
+            : outerBody;
+
+    const fullName = getString(body, [
+      "fullName",
+      "firstName",
+      "first_name",
+      "full_name",
+    ]);
+
+    const surname = getString(body, [
+      "surname",
+      "lastName",
+      "last_name",
+    ]);
+
+    const username = getString(body, [
+      "username",
+    ]).toLowerCase();
+
+    const email = getString(body, [
+      "email",
+    ]).toLowerCase();
+
+    const contactNumber = getString(body, [
+      "contactNumber",
+      "contact_number",
+      "phone",
+      "phoneNumber",
+    ]);
+
+    const teamName = getString(body, [
+      "teamName",
+      "team_name",
+      "responseTeam",
+      "response_team",
+    ]);
+
+    const missingFields: string[] = [];
+
+    if (!fullName) missingFields.push("First Name");
+    if (!surname) missingFields.push("Surname");
+    if (!username) missingFields.push("Username");
+    if (!email) missingFields.push("Email");
+    if (!contactNumber) {
+      missingFields.push("Contact Number");
+    }
+    if (!teamName) {
+      missingFields.push("Response Team");
+    }
+
+    if (missingFields.length > 0) {
+      console.error(
+        "Missing staff fields:",
+        missingFields,
+        "Received keys:",
+        Object.keys(body)
+      );
+
       throw new Error(
-        "Please complete all required staff information."
+        `Please complete the following required fields: ${missingFields.join(", ")}.`
       );
     }
 
     if (!/^\d{11}$/.test(contactNumber)) {
       throw new Error(
         "Contact number must contain exactly 11 digits."
+      );
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error(
+        "Please enter a valid email address."
+      );
+    }
+
+    if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
+      throw new Error(
+        "Username can only contain letters, numbers, periods, underscores, and hyphens."
       );
     }
 
@@ -212,15 +354,17 @@ Deno.serve(async (request: Request) => {
       );
     }
 
+    const initialPassword = surname;
+
     const {
       data: authData,
       error: authError,
     } = await adminClient.auth.admin.createUser({
       email,
-      password,
+      password: initialPassword,
       email_confirm: true,
       user_metadata: {
-        full_name: fullName,
+        full_name: `${fullName} ${surname}`,
         username,
         contact_number: contactNumber,
         role: "staff",
@@ -228,17 +372,6 @@ Deno.serve(async (request: Request) => {
     });
 
     if (authError || !authData.user) {
-      if (
-        authError?.message &&
-        /password.*(minimum|least|characters|length)/i.test(
-          authError.message
-        )
-      ) {
-        throw new Error(
-          `Supabase rejected this surname as a password because it does not meet the configured password requirements. ${authError.message}`
-        );
-      }
-
       throw (
         authError ||
         new Error(
@@ -248,6 +381,7 @@ Deno.serve(async (request: Request) => {
     }
 
     const staffId = authData.user.id;
+    createdStaffId = staffId;
 
     const {
       error: profileError,
@@ -256,7 +390,7 @@ Deno.serve(async (request: Request) => {
       .upsert(
         {
           id: staffId,
-          full_name: fullName,
+          full_name: `${fullName} ${surname}`,
           username,
           email,
           contact_number: contactNumber,
@@ -270,7 +404,6 @@ Deno.serve(async (request: Request) => {
       );
 
     if (profileError) {
-      await adminClient.auth.admin.deleteUser(staffId);
       throw profileError;
     }
 
@@ -280,7 +413,7 @@ Deno.serve(async (request: Request) => {
       .from("staff_profiles")
       .insert({
         id: staffId,
-        full_name: fullName,
+        full_name: `${fullName} ${surname}`,
         username,
         email,
         contact_number: contactNumber,
@@ -290,15 +423,10 @@ Deno.serve(async (request: Request) => {
       });
 
     if (staffProfileError) {
-      await adminClient
-        .from("profiles")
-        .delete()
-        .eq("id", staffId);
-
-      await adminClient.auth.admin.deleteUser(staffId);
-
       throw staffProfileError;
     }
+
+    createdStaffId = null;
 
     return jsonResponse(
       {
@@ -306,24 +434,67 @@ Deno.serve(async (request: Request) => {
         message: "Staff account created successfully.",
         staff: {
           id: staffId,
-          fullName,
+          fullName: `${fullName} ${surname}`,
           username,
           email,
           contactNumber,
           teamName,
-          },
+          accountStatus: "Active",
+        },
       },
       200
     );
   } catch (error) {
-    console.error("create-staff:", error);
+    const errorMessage = getErrorMessage(error);
+
+    console.error("CREATE STAFF ERROR:", error);
+    console.error(
+      "CREATE STAFF ERROR MESSAGE:",
+      errorMessage
+    );
+
+    if (createdStaffId && adminClient) {
+      const { error: staffDeleteError } = await adminClient
+        .from("staff_profiles")
+        .delete()
+        .eq("id", createdStaffId);
+
+      if (staffDeleteError) {
+        console.error(
+          "Staff profile rollback failed:",
+          staffDeleteError
+        );
+      }
+
+      const { error: profileDeleteError } = await adminClient
+        .from("profiles")
+        .delete()
+        .eq("id", createdStaffId);
+
+      if (profileDeleteError) {
+        console.error(
+          "Profile rollback failed:",
+          profileDeleteError
+        );
+      }
+
+      const { error: authDeleteError } =
+        await adminClient.auth.admin.deleteUser(
+          createdStaffId
+        );
+
+      if (authDeleteError) {
+        console.error(
+          "Auth rollback failed:",
+          authDeleteError
+        );
+      }
+    }
 
     return jsonResponse(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to create staff account.",
+        success: false,
+        error: errorMessage,
       },
       400
     );
