@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 
 interface UserProfile {
@@ -12,39 +11,48 @@ interface UserProfile {
   created_at: string;
 }
 
+interface StaffProfile {
+  id: string;
+  full_name: string;
+  username: string;
+  email: string;
+  contact_number: string | null;
+  team_name: string;
+  account_status: string;
+  created_at: string;
+}
+
 export default function Users() {
-  const navigate = useNavigate();
 
-  const [users, setUsers] =
-    useState<UserProfile[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [staff, setStaff] = useState<StaffProfile[]>([]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
+  const [staffLoading, setStaffLoading] = useState(true);
 
-  const [search, setSearch] =
-    useState("");
+  const [userError, setUserError] = useState("");
+  const [staffError, setStaffError] = useState("");
+  const [staffMessage, setStaffMessage] = useState("");
+
+  const [search, setSearch] = useState("");
 
   const [selectedUser, setSelectedUser] =
     useState<UserProfile | null>(null);
 
-  const [noticeMessage, setNoticeMessage] =
-    useState("");
-
-  const [isModalOpen, setIsModalOpen] =
-    useState(false);
+  const [noticeMessage, setNoticeMessage] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    fetchUsers();
+    void fetchUsers();
+    void fetchStaff();
   }, []);
 
   async function fetchUsers() {
     try {
       setLoading(true);
+      setUserError("");
 
-      const {
-        data,
-        error,
-      } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select(
           "id, full_name, email, contact_number, address, role, created_at"
@@ -69,522 +77,583 @@ export default function Users() {
         throw archivedError;
       }
 
-      const archivedIds =
-        new Set(
-          (archivedData || []).map(
-            (item) => item.id
-          )
-        );
+      const archivedIds = new Set(
+        (archivedData || []).map((item) => item.id)
+      );
 
-      const activeUsers =
-        ((data as UserProfile[]) ||
-          []).filter(
-          (user) =>
-            !archivedIds.has(
-              user.id
-            )
-        );
+      const activeUsers = ((data || []) as UserProfile[]).filter(
+        (user) =>
+          user.role?.toLowerCase() !== "admin" &&
+          user.role?.toLowerCase() !== "staff" &&
+          !archivedIds.has(user.id)
+      );
 
       setUsers(activeUsers);
     } catch (error) {
-      console.error(
-        "Error fetching resident accounts:",
-        error
+      console.error("Error fetching user accounts:", error);
+
+      setUserError(
+        error instanceof Error
+          ? error.message
+          : "Failed to load user accounts."
       );
     } finally {
       setLoading(false);
     }
   }
 
-  const handleArchiveUser =
-    async (
-      user: UserProfile
-    ) => {
-      const confirmed =
-        window.confirm(
-          `Are you sure you want to delete ${
-            user.full_name ||
-            "this resident"
-          }? The account will be moved to Archive.`
-        );
+  async function fetchStaff() {
+    try {
+      setStaffLoading(true);
+      setStaffError("");
 
-      if (!confirmed) {
-        return;
+      const { data, error } = await supabase
+        .from("staff_profiles")
+        .select(
+          "id, full_name, username, email, contact_number, team_name, account_status, created_at"
+        )
+        .order("created_at", {
+          ascending: false,
+        });
+
+      if (error) {
+        throw error;
       }
 
-      try {
-        const {
-          error,
-        } = await supabase
-          .from(
-            "archived_profiles"
-          )
-          .upsert({
-            id: user.id,
-            full_name:
-              user.full_name,
-            email:
-              user.email,
-            contact_number:
-              user.contact_number,
-            address:
-              user.address,
-            role:
-              user.role,
-            created_at:
-              user.created_at,
-            archived_at:
-              new Date().toISOString(),
-          });
+      setStaff((data || []) as StaffProfile[]);
+    } catch (error) {
+      console.error("Error fetching staff accounts:", error);
 
-        if (error) {
-          throw error;
-        }
-
-        setUsers(
-          (current) =>
-            current.filter(
-              (item) =>
-                item.id !==
-                user.id
-            )
-        );
-
-        alert(
-          `${
-            user.full_name ||
-            "Resident"
-          } has been deleted and moved to Archive.`
-        );
-      } catch (error) {
-        console.error(
-          "Error archiving resident account:",
-          error
-        );
-
-        alert(
-          "Failed to delete resident account."
-        );
-      }
-    };
-
-  const handleSendNotice =
-    async () => {
-      if (
-        !selectedUser ||
-        !noticeMessage.trim()
-      ) {
-        return;
-      }
-
-      try {
-        const {
-          error,
-        } = await supabase
-          .from(
-            "notifications"
-          )
-          .insert([
-            {
-              user_id:
-                selectedUser.id,
-              title:
-                "Notice from the Barangay Office",
-              message:
-                noticeMessage.trim(),
-              type:
-                "admin_message",
-              created_at:
-                new Date().toISOString(),
-            },
-          ]);
-
-        if (error) {
-          throw error;
-        }
-
-        alert(
-          `Notice sent to ${
-            selectedUser.full_name ||
-            "resident"
-          }.`
-        );
-
-        setIsModalOpen(false);
-        setNoticeMessage("");
-        setSelectedUser(null);
-      } catch (error) {
-        console.error(
-          "Error sending notice:",
-          error
-        );
-
-        alert(
-          "Failed to send the notification."
-        );
-      }
-    };
-
-  const handleLogout =
-    async () => {
-      await supabase.auth.signOut();
-
-      navigate(
-        "/login",
-        {
-          replace: true,
-        }
+      setStaffError(
+        error instanceof Error
+          ? error.message
+          : "Failed to load staff accounts."
       );
-    };
+    } finally {
+      setStaffLoading(false);
+    }
+  }
 
-  const extractArea =
-    (address: string | null) => {
-      if (!address) {
-        return "Not provided";
-      }
+  const handleToggleStaff = async (
+    staffMember: StaffProfile
+  ) => {
+    const nextStatus =
+      staffMember.account_status === "Active"
+        ? "Inactive"
+        : "Active";
 
-      return (
-        address.split(",")[0] ||
-        "Not provided"
-      );
-    };
-
-  const filteredUsers =
-    users.filter(
-      (user) => {
-        const query =
-          search
-            .trim()
-            .toLowerCase();
-
-        const name =
-          user.full_name?.toLowerCase() ||
-          "";
-
-        const email =
-          user.email?.toLowerCase() ||
-          "";
-
-        const contact =
-          user.contact_number?.toLowerCase() ||
-          "";
-
-        const address =
-          user.address?.toLowerCase() ||
-          "";
-
-        return (
-          name.includes(query) ||
-          email.includes(query) ||
-          contact.includes(query) ||
-          address.includes(query)
-        );
-      }
+    const confirmed = window.confirm(
+      `Are you sure you want to ${
+        nextStatus === "Active" ? "activate" : "disable"
+      } ${staffMember.full_name}'s account?`
     );
 
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setStaffError("");
+      setStaffMessage("");
+
+      const { error } = await supabase
+        .from("staff_profiles")
+        .update({
+          account_status: nextStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", staffMember.id);
+
+      if (error) {
+        throw error;
+      }
+
+      setStaff((current) =>
+        current.map((item) =>
+          item.id === staffMember.id
+            ? {
+                ...item,
+                account_status: nextStatus,
+              }
+            : item
+        )
+      );
+
+      setStaffMessage(
+        nextStatus === "Active"
+          ? `${staffMember.full_name}'s account has been activated.`
+          : `${staffMember.full_name}'s account has been disabled.`
+      );
+    } catch (error) {
+      console.error("Failed to update staff account:", error);
+
+      setStaffError(
+        error instanceof Error
+          ? error.message
+          : "Failed to update staff account."
+      );
+    }
+  };
+
+  const handleArchiveUser = async (user: UserProfile) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to move ${
+        user.full_name || "this user"
+      } to Archive?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("archived_profiles")
+        .upsert({
+          id: user.id,
+          full_name: user.full_name,
+          email: user.email,
+          contact_number: user.contact_number,
+          address: user.address,
+          role: user.role,
+          created_at: user.created_at,
+          archived_at: new Date().toISOString(),
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      setUsers((current) =>
+        current.filter((item) => item.id !== user.id)
+      );
+
+      alert(
+        `${user.full_name || "User"} has been moved to Archive.`
+      );
+    } catch (error) {
+      console.error("Error archiving user account:", error);
+
+      alert("Failed to move user account to Archive.");
+    }
+  };
+
+  const handleSendNotice = async () => {
+    if (!selectedUser || !noticeMessage.trim()) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("notifications")
+        .insert([
+          {
+            user_id: selectedUser.id,
+            title: "Notice from the Barangay Office",
+            message: noticeMessage.trim(),
+            type: "admin_message",
+            created_at: new Date().toISOString(),
+          },
+        ]);
+
+      if (error) {
+        throw error;
+      }
+
+      alert(
+        `Notice sent to ${selectedUser.full_name || "user"}.`
+      );
+
+      setIsModalOpen(false);
+      setNoticeMessage("");
+      setSelectedUser(null);
+    } catch (error) {
+      console.error("Error sending notice:", error);
+
+      alert("Failed to send the notification.");
+    }
+  };
+
+
+  const extractArea = (address: string | null) => {
+    if (!address) {
+      return "Not provided";
+    }
+
+    return address.split(",")[0] || "Not provided";
+  };
+
+  const normalizedSearch = search.trim().toLowerCase();
+
+  const filteredStaff = staff.filter((item) => {
+    return (
+      item.full_name?.toLowerCase().includes(normalizedSearch) ||
+      item.username?.toLowerCase().includes(normalizedSearch) ||
+      item.email?.toLowerCase().includes(normalizedSearch) ||
+      item.contact_number?.toLowerCase().includes(normalizedSearch) ||
+      item.team_name?.toLowerCase().includes(normalizedSearch)
+    );
+  });
+
+  const filteredUsers = users.filter((user) => {
+    const name = user.full_name?.toLowerCase() || "";
+    const email = user.email?.toLowerCase() || "";
+    const contact = user.contact_number?.toLowerCase() || "";
+    const address = user.address?.toLowerCase() || "";
+
+    return (
+      name.includes(normalizedSearch) ||
+      email.includes(normalizedSearch) ||
+      contact.includes(normalizedSearch) ||
+      address.includes(normalizedSearch)
+    );
+  });
+
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans">
-      <aside className="w-64 bg-white border-r border-slate-200 p-5 flex flex-col shrink-0">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="h-10 w-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-black text-lg shadow-md">
-            C
+    <div className="space-y-6 p-4 sm:p-6">
+      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-emerald-700">
+              CERMS / Management
+            </span>
           </div>
 
+          <h1 className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
+            Accounts
+          </h1>
+
+          <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
+            Manage staff and user accounts.
+          </p>
+        </div>
+
+        <input
+          type="text"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search accounts..."
+          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold text-slate-800 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 sm:w-72 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
+        />
+      </header>
+
+      {staffMessage && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+          {staffMessage}
+        </div>
+      )}
+
+      {staffError && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+          {staffError}
+        </div>
+      )}
+
+      {userError && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+          {userError}
+        </div>
+      )}
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-5 dark:border-slate-700 sm:px-6">
           <div>
-            <h2 className="font-extrabold text-slate-900 text-base leading-none">
-              CERMS
+            <h2 className="text-lg font-black text-slate-900 dark:text-white">
+              Staff Accounts
             </h2>
 
-            <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider mt-1">
-              WASTE MONITORING
+            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+              Manage the accounts of assigned barangay personnel.
             </p>
           </div>
+
+          <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-extrabold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+            {staff.length} {staff.length === 1 ? "Staff" : "Staff Members"}
+          </span>
         </div>
 
-        <nav className="space-y-2 text-sm font-bold flex-1">
-          <button
-            type="button"
-            onClick={() =>
-              navigate(
-                "/dashboard"
-              )
-            }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
-          >
-            Dashboard
-          </button>
+        {staffLoading ? (
+          <div className="py-12 text-center text-sm font-semibold text-slate-400">
+            Loading staff accounts...
+          </div>
+        ) : filteredStaff.length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
+              No staff accounts found.
+            </p>
 
-          <button
-            type="button"
-            onClick={() =>
-              navigate("/map")
-            }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
-          >
-            Geotagged Map
-          </button>
+            <p className="mt-1 text-xs text-slate-400">
+              Staff accounts created through Staff Personnel will appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-xs sm:text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
+                  <th className="whitespace-nowrap px-4 py-3 font-extrabold">
+                    Staff
+                  </th>
 
-          <button
-            type="button"
-            onClick={() =>
-              navigate(
-                "/reports"
-              )
-            }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
-          >
-            Reports
-          </button>
+                  <th className="whitespace-nowrap px-4 py-3 font-extrabold">
+                    Email
+                  </th>
 
-          <button
-            type="button"
-            className="w-full text-left px-4 py-3 rounded-xl bg-emerald-800 text-white shadow-sm"
-          >
-            Accounts
-          </button>
+                  <th className="whitespace-nowrap px-4 py-3 font-extrabold">
+                    Contact Number
+                  </th>
 
-          <button
-            type="button"
-            onClick={() =>
-              navigate(
-                "/archive"
-              )
-            }
-            className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all"
-          >
-            Archive
-          </button>
-        </nav>
+                  <th className="whitespace-nowrap px-4 py-3 font-extrabold">
+                    Team
+                  </th>
 
-        <div className="pt-4 border-t border-slate-100">
-          <button
-            type="button"
-            onClick={
-              handleLogout
-            }
-            className="w-full py-2.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 rounded-xl text-sm font-bold transition-all"
-          >
-            Log Out
-          </button>
-        </div>
-      </aside>
+                  <th className="whitespace-nowrap px-4 py-3 font-extrabold">
+                    Registered Date
+                  </th>
 
-      <main className="flex-1 p-6 overflow-y-auto">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5 border-b border-slate-200">
-            <div>
-              <h1 className="text-2xl font-black text-slate-900">
-                Resident Accounts
-              </h1>
+                  <th className="whitespace-nowrap px-4 py-3 text-center font-extrabold">
+                    Status
+                  </th>
 
-              <p className="text-xs text-slate-500 mt-1">
-                Manage registered resident accounts
-              </p>
-            </div>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-extrabold">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
 
-            <input
-              type="text"
-              value={search}
-              onChange={(e) =>
-                setSearch(
-                  e.target.value
-                )
-              }
-              placeholder="Search accounts..."
-              className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-600"
-            />
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                {filteredStaff.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/40"
+                  >
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <p className="font-extrabold text-slate-900 dark:text-white">
+                        {item.full_name}
+                      </p>
+
+                      <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
+                        @{item.username}
+                      </p>
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-600 dark:text-slate-300">
+                      {item.email}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">
+                      {item.contact_number || "Not provided"}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">
+                      {item.team_name || "Not assigned"}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-500 dark:text-slate-400">
+                      {new Date(item.created_at).toLocaleDateString()}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 text-center">
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-[10px] font-extrabold ${
+                          item.account_status === "Active"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                            : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                        }`}
+                      >
+                        {item.account_status}
+                      </span>
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleStaff(item)}
+                        className={`rounded-lg px-3 py-1.5 text-[10px] font-extrabold transition-colors ${
+                          item.account_status === "Active"
+                            ? "bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-950"
+                            : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-950"
+                        }`}
+                      >
+                        {item.account_status === "Active"
+                          ? "Disable"
+                          : "Activate"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-5 dark:border-slate-700 sm:px-6">
+          <div>
+            <h2 className="text-lg font-black text-slate-900 dark:text-white">
+              User Accounts
+            </h2>
+
+            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+              Manage registered user accounts in Barangay Tankulan.
+            </p>
           </div>
 
-          <div className="p-6">
-            {loading ? (
-              <div className="py-12 text-center text-sm font-semibold text-slate-400">
-                Loading resident accounts...
-              </div>
-            ) : filteredUsers.length ===
-              0 ? (
-              <div className="py-12 text-center text-sm font-semibold text-slate-400">
-                No resident accounts found.
-              </div>
-            ) : (
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <table className="w-full text-left text-xs sm:text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100 font-bold text-slate-700 border-b border-slate-200">
-                      <th className="py-3 px-4">
-                        Resident
-                      </th>
+          <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-extrabold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+            {users.length} {users.length === 1 ? "User" : "Users"}
+          </span>
+        </div>
 
-                      <th className="py-3 px-4">
-                        Email
-                      </th>
+        {loading ? (
+          <div className="py-12 text-center text-sm font-semibold text-slate-400">
+            Loading user accounts...
+          </div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="py-12 text-center text-sm font-semibold text-slate-400">
+            No user accounts found.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-xs sm:text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
+                  <th className="whitespace-nowrap px-4 py-3 font-extrabold">
+                    Name
+                  </th>
 
-                      <th className="py-3 px-4">
-                        Contact Number
-                      </th>
+                  <th className="whitespace-nowrap px-4 py-3 font-extrabold">
+                    Email
+                  </th>
 
-                      <th className="py-3 px-4">
-                        Area
-                      </th>
+                  <th className="whitespace-nowrap px-4 py-3 font-extrabold">
+                    Contact Number
+                  </th>
 
-                      <th className="py-3 px-4">
-                        Registered Date
-                      </th>
+                  <th className="whitespace-nowrap px-4 py-3 font-extrabold">
+                    Area
+                  </th>
 
-                      <th className="py-3 px-4 text-right">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
+                  <th className="whitespace-nowrap px-4 py-3 font-extrabold">
+                    Registered Date
+                  </th>
 
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredUsers.map(
-                      (user) => (
-                        <tr
-                          key={
-                            user.id
-                          }
-                          className="hover:bg-slate-50"
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-extrabold">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                {filteredUsers.map((user) => (
+                  <tr
+                    key={user.id}
+                    className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/40"
+                  >
+                    <td className="whitespace-nowrap px-4 py-3 font-extrabold text-slate-900 dark:text-white">
+                      {user.full_name || "Unnamed User"}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-600 dark:text-slate-300">
+                      {user.email || "Not provided"}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">
+                      {user.contact_number || "Not provided"}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-extrabold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                        {extractArea(user.address)}
+                      </span>
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-500 dark:text-slate-400">
+                      {new Date(user.created_at).toLocaleDateString()}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setIsModalOpen(true);
+                          }}
+                          className="rounded-lg bg-amber-500 px-3 py-1.5 text-[10px] font-extrabold text-white transition-colors hover:bg-amber-600"
                         >
-                          <td className="py-3 px-4 font-bold text-slate-900">
-                            {user.full_name ||
-                              "Unnamed Resident"}
-                          </td>
+                          Send Notice
+                        </button>
 
-                          <td className="py-3 px-4 text-slate-600">
-                            {user.email ||
-                              "Not provided"}
-                          </td>
-
-                          <td className="py-3 px-4 font-medium text-slate-700">
-                            {user.contact_number ||
-                              "Not provided"}
-                          </td>
-
-                          <td className="py-3 px-4">
-                            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-                              {extractArea(
-                                user.address
-                              )}
-                            </span>
-                          </td>
-
-                          <td className="py-3 px-4 text-slate-500">
-                            {new Date(
-                              user.created_at
-                            ).toLocaleDateString()}
-                          </td>
-
-                          <td className="py-3 px-4 text-right">
-                            <div className="flex justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedUser(
-                                    user
-                                  );
-
-                                  setIsModalOpen(
-                                    true
-                                  );
-                                }}
-                                className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
-                              >
-Send Notice
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleArchiveUser(
-                                    user
-                                  )
-                                }
-                                className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                        <button
+                          type="button"
+                          onClick={() => void handleArchiveUser(user)}
+                          className="rounded-lg bg-rose-600 px-3 py-1.5 text-[10px] font-extrabold text-white transition-colors hover:bg-rose-700"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
-      </main>
+        )}
+      </section>
 
-      {isModalOpen &&
-        selectedUser && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl p-6 max-w-md w-full border border-slate-200 shadow-xl space-y-4">
-              <h3 className="text-lg font-black text-slate-900">
-                Send Notice to Resident
+      {isModalOpen && selectedUser && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-800">
+            <div>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                Send Notice to User
               </h3>
 
-              <p className="text-xs text-slate-500">
-                This notice appears in the
-                resident&apos;s notifications as
-                a regular update to{" "}
-                <span className="font-bold text-slate-800">
-                  {selectedUser.full_name ||
-                    "Resident"}
+              <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                This notice will appear in the notifications of{" "}
+                <span className="font-extrabold text-slate-800 dark:text-white">
+                  {selectedUser.full_name || "this user"}
                 </span>
                 .
               </p>
+            </div>
 
-              <textarea
-                value={
-                  noticeMessage
-                }
-                onChange={(e) =>
-                  setNoticeMessage(
-                    e.target.value
-                  )
-                }
-                placeholder="Write the message you want the resident to receive..."
-                className="w-full h-28 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none resize-none"
-              />
+            <textarea
+              value={noticeMessage}
+              onChange={(event) =>
+                setNoticeMessage(event.target.value)
+              }
+              placeholder="Write the message you want the user to receive..."
+              className="h-32 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500"
+            />
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsModalOpen(
-                      false
-                    );
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setNoticeMessage("");
+                  setSelectedUser(null);
+                }}
+                className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+              >
+                Cancel
+              </button>
 
-                    setNoticeMessage(
-                      ""
-                    );
-
-                    setSelectedUser(
-                      null
-                    );
-                  }}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  onClick={
-                    handleSendNotice
-                  }
-                  disabled={
-                    !noticeMessage.trim()
-                  }
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Confirm &amp; Send
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => void handleSendNotice()}
+                disabled={!noticeMessage.trim()}
+                className="rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Confirm &amp; Send
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
     </div>
   );
 }

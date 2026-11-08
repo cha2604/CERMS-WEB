@@ -1,5 +1,8 @@
-
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+  Outlet,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import {
   FiArchive,
   FiBarChart2,
@@ -111,7 +114,7 @@ export default function AdminLayout() {
   ];
 
   return (
-    <div className="admin-layout min-h-screen bg-slate-50 font-sans">
+    <div className="admin-layout min-h-screen bg-slate-50 font-sans dark:bg-slate-900">
       <style>
         {`
           .admin-page-content aside:not(.admin-global-sidebar) {
@@ -128,14 +131,14 @@ export default function AdminLayout() {
         `}
       </style>
 
-      <aside className="admin-global-sidebar fixed left-0 top-0 bottom-0 z-50 w-64 bg-white border-r border-slate-200 p-5 flex flex-col shrink-0 print:hidden">
+      <aside className="admin-global-sidebar fixed left-0 top-0 bottom-0 z-50 w-64 bg-white border-r border-slate-200 p-5 flex flex-col shrink-0 print:hidden dark:bg-slate-800 dark:border-slate-700">
         <div className="flex items-center gap-3 mb-8">
           <div className="h-10 w-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-black text-lg shadow-md">
             C
           </div>
 
           <div>
-            <h2 className="font-extrabold text-slate-900 text-base leading-none">
+            <h2 className="font-extrabold text-slate-900 text-base leading-none dark:text-white">
               CERMS
             </h2>
 
@@ -149,6 +152,11 @@ export default function AdminLayout() {
           {navItems.map((item) => {
             const Icon = item.icon;
 
+            const label =
+              item.label === "accounts"
+                ? "Accounts"
+                : t(item.label);
+
             return (
               <button
                 key={item.path}
@@ -157,21 +165,21 @@ export default function AdminLayout() {
                 className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${
                   isActive(item.path)
                     ? "bg-emerald-800 text-white shadow-sm"
-                    : "text-slate-600 hover:bg-slate-100"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
                 }`}
               >
                 <Icon size={16} />
-                {t(item.label)}
+                {label}
               </button>
             );
           })}
         </nav>
 
-        <div className="pt-4 border-t border-slate-100">
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full py-2.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+            className="w-full py-2.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-rose-950 dark:hover:text-rose-300"
           >
             <FiLogOut size={15} />
             {t("logout")}
@@ -180,13 +188,13 @@ export default function AdminLayout() {
       </aside>
 
       <main className="admin-page-content ml-64 min-h-screen min-w-0">
-        <div className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-end gap-3 print:hidden">
+        <div className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-end gap-3 print:hidden dark:bg-slate-800 dark:border-slate-700">
           <PreferencesControls />
 
           <button
             type="button"
             onClick={() => navigate("/notifications")}
-            className="relative p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all"
+            className="relative p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
             title={t("notifications")}
             aria-label={t("notifications")}
           >
