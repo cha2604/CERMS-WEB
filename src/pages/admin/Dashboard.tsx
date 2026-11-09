@@ -4,6 +4,7 @@ import {
   FiArrowRight,
   FiBarChart2,
   FiCamera,
+  FiTrash2,
   FiCheckCircle,
   FiClock,
   FiFileText,
@@ -136,6 +137,7 @@ export default function AdminDashboard() {
           .select(
             "id, title, waste_type, location_name, status, created_at, profiles(full_name)"
           )
+          .not("status", "in", '("Resolved","Rejected")')
           .order("created_at", { ascending: false })
           .limit(6),
 
@@ -373,6 +375,10 @@ export default function AdminDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  const handleDismissFromRecent = (id: string) => {
+    setReports((prev) => prev.filter((r) => r.id !== id));
   };
 
   const handleLogout = async () => {
@@ -833,8 +839,10 @@ export default function AdminDashboard() {
                         Person in Charge
                       </th>
 
+                      <th className="px-5 py-3 text-left text-xs font-black uppercase tracking-wide text-slate-500">Date</th>
+                      <th className="px-5 py-3 text-left text-xs font-black uppercase tracking-wide text-slate-500">Action</th>
                       <th className="px-5 py-3 text-left text-xs font-black uppercase tracking-wide text-slate-500">
-                        Date
+                        Action
                       </th>
                     </tr>
                   </thead>
@@ -843,7 +851,7 @@ export default function AdminDashboard() {
                     {loading ? (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={6}
                           className="px-5 py-10 text-center text-sm font-semibold text-slate-500"
                         >
                           Loading recent reports...
@@ -852,7 +860,7 @@ export default function AdminDashboard() {
                     ) : reports.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={6}
                           className="px-5 py-10 text-center text-sm font-semibold text-slate-500"
                         >
                           No reports available.
@@ -918,6 +926,12 @@ export default function AdminDashboard() {
 
                           <td className="px-5 py-4 text-sm font-semibold text-slate-600 whitespace-nowrap">
                             {formatDate(report.created_at)}
+                          </td>
+                          <td className="px-5 py-4">
+                            <button type="button" onClick={(e) => { e.stopPropagation(); handleDismissFromRecent(report.id); }} className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] font-black text-rose-700 hover:bg-rose-100">
+                              <FiTrash2 size={12} />
+                              Remove
+                            </button>
                           </td>
                         </tr>
                       ))
