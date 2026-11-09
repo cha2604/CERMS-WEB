@@ -128,12 +128,14 @@ function analyzePictureSeverity(file: File): Promise<SeverityResult> {
           const skyRatio = skyPixels / totalPixels;
 
           // Check if image is NOT waste-related
-          const isSelfie = skinRatio > 0.15;
+          const isSelfie = skinRatio > 0.08;
           const isSky = skyRatio > 0.3;
-          const isUniformWall = edgeRatio < 0.05 && wasteRatio < 0.15;
-          const hasNoWaste = wasteRatio < 0.1 && edgeRatio < 0.15;
+          const isAllBlack = avgBrightness < 25;
+          const isAllWhite = avgBrightness > 235;
+          const isUniform = edgeRatio < 0.08;
+          const hasNoWaste = wasteRatio < 0.2 && edgeRatio < 0.2;
 
-          if (isSelfie || isSky || isUniformWall || hasNoWaste) {
+          if (isSelfie || isSky || isAllBlack || isAllWhite || isUniform || hasNoWaste) {
             resolve({
               level: "None",
               explanation: "No waste detected. The image does not appear to contain waste or debris. Please capture a photo of the actual waste concern.",
