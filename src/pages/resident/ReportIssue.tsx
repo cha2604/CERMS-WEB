@@ -547,25 +547,7 @@ export default function ReportIssue() {
           return false;
         }
 
-        if (analyzingAI) {
-          setErrorMessage(
-            "Please wait for the automated severity assessment to finish."
-          );
-
-          return false;
-        }
-
-        if (
-          pictureSeverity
-            ?.level ===
-          "None"
-        ) {
-          setErrorMessage(
-            "The captured photo does not appear to contain waste. Please take a photo of the actual waste concern."
-          );
-
-          return false;
-        }
+        // Allow proceeding regardless of severity (including None).
       }
 
       if (
@@ -796,17 +778,7 @@ export default function ReportIssue() {
         return;
       }
 
-      if (
-        pictureSeverity
-          ?.level ===
-        "None"
-      ) {
-        setErrorMessage(
-          "The captured photo does not appear to contain waste. Please take a photo of the actual waste concern."
-        );
-        setCurrentStep(3);
-        return;
-      }
+      // Allow proceeding regardless of severity (including None).
 
       if (
         coords.lat ===
