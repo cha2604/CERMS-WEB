@@ -13,7 +13,6 @@ import {
 import {
   ensureResidentProfile,
   getAccountStatus,
-  getEmailByUsername,
   loginWithEmail,
   loginWithGoogle,
 } from "../../lib/authHelpers";
@@ -101,7 +100,7 @@ export default function Login() {
 
       if (!identifier) {
         throw new Error(
-          "Please enter your username or email."
+          "Please enter your email."
         );
       }
 
@@ -111,20 +110,8 @@ export default function Login() {
         );
       }
 
-      let loginEmail =
-        identifier;
-
-      if (
-        !identifier.includes("@")
-      ) {
-        loginEmail =
-          await getEmailByUsername(
-            identifier
-          );
-      }
-
       await loginWithEmail(
-        loginEmail,
+        identifier,
         password
       );
 
@@ -138,25 +125,19 @@ export default function Login() {
       const message =
         error instanceof Error
           ? error.message
-          : "Login failed.";
+          : "Unable to log in.";
 
       if (
-        message
-          .toLowerCase()
-          .includes(
-            "invalid login credentials"
-          )
+        message.toLowerCase().includes("invalid login credentials")
       ) {
         setErrorMessage(
-          "Incorrect username, email, or password."
+          "Incorrect email or password."
         );
-
-        return;
+      } else {
+        setErrorMessage(
+          message
+        );
       }
-
-      setErrorMessage(
-        message
-      );
     } finally {
       setLoading(false);
     }
@@ -219,9 +200,9 @@ export default function Login() {
           className="mt-6 space-y-5"
         >
           <Input
-            label="Username or Email"
+            label="Email"
             type="text"
-            placeholder="Enter your username or email"
+            placeholder="Enter your email"
             icon={
               <FiUser size={16} />
             }
@@ -233,7 +214,7 @@ export default function Login() {
                 e.target.value
               )
             }
-            autoComplete="username"
+            autoComplete="email"
             required
           />
 
