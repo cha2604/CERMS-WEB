@@ -157,6 +157,12 @@ export default function LocationPicker({
   const [locating, setLocating] =
     useState(false);
 
+  const [tracking, setTracking] =
+    useState(false);
+
+  const [accuracy, setAccuracy] =
+    useState<number | null>(null);
+
   const [locationError, setLocationError] =
     useState("");
 
@@ -164,6 +170,89 @@ export default function LocationPicker({
     useState<"street" | "satellite">("street");
 
   const markerRef = useRef<L.Marker>(null);
+
+  const watchIdRef = useRef<number | null>(
+    null
+  );
+
+  const autoWatchIdRef = useRef<number | null>(
+    null
+  );
+
+  const fixHistoryRef = useRef<
+    {
+      lat: number;
+      lng: number;
+      acc: number;
+      t: number;
+    }[]
+  >([]);
+
+  const stopTracking = () => {
+    if (
+      watchIdRef.current !== null &&
+      navigator.geolocation
+    ) {
+      navigator.geolocation.clearWatch(
+        watchIdRef.current
+      );
+      watchIdRef.current = null;
+    }
+
+    setTracking(false);
+  };
+
+  const applyFix = (
+    targetLat: number,
+    targetLng: number,
+    targetAccuracy: number
+  ) => {
+    setAccuracy(targetAccuracy);
+
+    const now = Date.now();
+    const history = fixHistoryRef.current;
+
+    history.push({
+      lat: targetLat,
+      lng: targetLng,
+      acc: targetAccuracy,
+      t: now,
+    });
+
+    while (history.length > 0 && now - history[0].t > 8000) {
+      history.shift();
+    }
+
+    if (history.length < 3) {
+      updateReportLocation(
+        targetLat,
+        targetLng
+      );
+      return;
+    }
+
+    let totalWeight = 0;
+    let weightedLat = 0;
+    let weightedLng = 0;
+
+    for (const fix of history) {
+      const weight =
+        1 /
+        Math.max(fix.acc, 5);
+
+      weightedLat += fix.lat * weight;
+      weightedLng += fix.lng * weight;
+      totalWeight += weight;
+    }
+
+    const smoothedLat = weightedLat / totalWeight;
+    const smoothedLng = weightedLng / totalWeight;
+
+    updateReportLocation(
+      smoothedLat,
+      smoothedLng
+    );
+  };
 
   const notifyParent = (
     targetLat: number,
@@ -300,46 +389,85 @@ export default function LocationPicker({
       setLocating(true);
       setLocationError("");
 
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          if (cancelled) return;
+      if (
+        typeof selectedLat !== "number" ||
+        typeof selectedLng !== "number"
+      ) {
+        autoWatchIdRef.current = navigator.geolocation.watchPosition(
+          async (position) => {
+            if (cancelled) return;
 
-          const currentLat = position.coords.latitude;
-          const currentLng = position.coords.longitude;
+            const currentLat = position.coords.latitude;
+            const currentLng = position.coords.longitude;
+            const currentAccuracy = position.coords.accuracy;
 
-          if (isWithinTankulan(currentLat, currentLng)) {
-            if (
-              typeof selectedLat !== "number" ||
-              typeof selectedLng !== "number"
-            ) {
-              setLat(currentLat);
-              setLng(currentLng);
-              await reverseGeocode(
+            if (!isWithinTankulan(currentLat, currentLng)) {
+              setLocationError("Your current GPS position is outside Barangay Tankulan boundary.");
+              return;
+            }
+
+            setLocating(false);
+            setTracking(true);
+            applyFix(
+              currentLat,
+              currentLng,
+              currentAccuracy
+            );
+          },
+          () => {
+            if (!cancelled) {
+              setLocating(false);
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+          }
+        );
+      } else {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            if (cancelled) return;
+
+            const currentLat = position.coords.latitude;
+            const currentLng = position.coords.longitude;
+            const currentAccuracy = position.coords.accuracy;
+
+            if (isWithinTankulan(currentLat, currentLng)) {
+              applyFix(
                 currentLat,
-                currentLng
+                currentLng,
+                currentAccuracy
               );
             }
-          }
 
-          setLocating(false);
-        },
-        () => {
-          if (!cancelled) {
             setLocating(false);
+          },
+          () => {
+            if (!cancelled) {
+              setLocating(false);
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0,
           }
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 0,
-        }
-      );
+        );
+      }
     }
 
     initializeLocation();
 
     return () => {
       cancelled = true;
+      if (autoWatchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(
+          autoWatchIdRef.current
+        );
+        autoWatchIdRef.current = null;
+      }
     };
   }, []);
 
@@ -353,24 +481,28 @@ export default function LocationPicker({
 
     setLocating(true);
     setLocationError("");
+    stopTracking();
 
-    navigator.geolocation.getCurrentPosition(
+    watchIdRef.current = navigator.geolocation.watchPosition(
       async (position) => {
         const currentLat = position.coords.latitude;
         const currentLng = position.coords.longitude;
+        const currentAccuracy = position.coords.accuracy;
 
         if (!isWithinTankulan(currentLat, currentLng)) {
           setLocationError("Your current GPS position is outside Barangay Tankulan boundary.");
+          stopTracking();
           setLocating(false);
           return;
         }
 
-        updateReportLocation(
-          currentLat,
-          currentLng
-        );
-
         setLocating(false);
+        setTracking(true);
+        applyFix(
+          currentLat,
+          currentLng,
+          currentAccuracy
+        );
       },
       () => {
         setLocationError(
@@ -380,7 +512,7 @@ export default function LocationPicker({
       },
       {
         enableHighAccuracy: true,
-        timeout: 15000,
+        timeout: 10000,
         maximumAge: 0,
       }
     );
@@ -419,6 +551,16 @@ export default function LocationPicker({
                 : "My Location"}
             </span>
           </button>
+
+          {tracking && (
+            <button
+              type="button"
+              onClick={stopTracking}
+              className="rounded-lg bg-rose-50/95 px-3 py-2 text-[11px] font-bold text-rose-700 shadow-md border border-rose-200 hover:bg-rose-100"
+            >
+              Stop Tracking
+            </button>
+          )}
         </div>
 
         <div className="absolute right-2 top-2 z-[40] flex rounded-lg bg-white/95 p-0.5 shadow-md border border-slate-200 text-[11px] font-bold pointer-events-auto">
@@ -487,11 +629,24 @@ export default function LocationPicker({
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-        <div className="flex items-center gap-4 text-[10px] font-bold text-slate-600">
+        <div className="flex items-center gap-4 text-[10px] font-bold text-slate-600 flex-wrap">
           <span className="inline-flex items-center gap-1.5">
             <span className="h-3 w-3 rounded-full bg-red-600 border-2 border-white shadow" />
             Waste report location (Drag pin within Tankulan)
           </span>
+
+          {tracking && (
+            <span className="inline-flex items-center gap-1.5 text-emerald-700">
+              <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
+              Live tracking active
+            </span>
+          )}
+
+          {accuracy !== null && (
+            <span className="text-slate-500">
+              Accuracy: {Math.round(accuracy)} m
+            </span>
+          )}
         </div>
 
         <div>
