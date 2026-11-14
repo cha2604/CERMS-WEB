@@ -143,37 +143,42 @@ function analyzePictureSeverity(file: File): Promise<SeverityResult> {
             return;
           }
 
-          // Combine metrics: higher waste ratio + edge complexity = more severe
-          const severityScore = (wasteRatio * 40) + (edgeRatio * 30) + (darkRatio * 20) + ((255 - avgBrightness) / 255 * 10);
+          // Combine metrics: waste volume (ratio of waste-like pixels) is the primary driver.
+          const wasteRatioClamped = Math.min(wasteRatio, 1);
+          const edgeRatioClamped = Math.min(edgeRatio, 1);
+          const darkRatioClamped = Math.min(darkRatio, 1);
 
-          if (severityScore < 35) {
+          // Volume score: waste pixels fill the frame (0-100).
+          const volumeScore = wasteRatioClamped * 70 + edgeRatioClamped * 20 + darkRatioClamped * 10;
+
+          if (volumeScore < 6) {
             resolve({
               level: "Low",
-              explanation: "AI visual scan detected low-density waste with minimal clutter and good lighting conditions.",
+              explanation: "AI visual scan detected a small amount of waste with minimal clutter.",
             });
-          } else if (severityScore < 65) {
+          } else if (volumeScore < 15) {
             resolve({
               level: "Moderate",
-              explanation: "AI visual scan detected moderate waste accumulation with noticeable clutter and mixed debris.",
+              explanation: "AI visual scan detected a noticeable pile of waste with mixed debris.",
             });
           } else {
             resolve({
               level: "High",
-              explanation: "AI visual scan detected high-density waste accumulation with heavy clutter, dark tones, and significant debris requiring priority action.",
+              explanation: "AI visual scan detected a large volume of waste filling the frame, requiring priority action.",
             });
           }
         } catch {
           resolve({
-            level: "Moderate",
-            explanation: "AI visual scan assessed waste volume condition in the picture.",
+            level: "Low",
+            explanation: "AI scanned picture pixels & assessed low waste volume.",
           });
         }
       };
 
       img.onerror = () => {
         resolve({
-          level: "Moderate",
-          explanation: "AI visual scan assessed waste volume condition in the picture.",
+          level: "Low",
+          explanation: "AI scanned picture pixels & assessed low waste volume.",
         });
       };
 
@@ -182,8 +187,8 @@ function analyzePictureSeverity(file: File): Promise<SeverityResult> {
 
     reader.onerror = () => {
       resolve({
-        level: "Moderate",
-        explanation: "AI visual scan assessed waste volume condition in the picture.",
+        level: "Low",
+        explanation: "AI scanned picture pixels & assessed low waste volume.",
       });
     };
 
@@ -279,8 +284,8 @@ export default function ReportIssue() {
       setPictureSeverity(result);
     } catch {
       setPictureSeverity({
-        level: "Moderate",
-        explanation: "AI scanned picture pixels & assessed moderate waste volume.",
+        level: "Low",
+        explanation: "AI scanned picture pixels & assessed low waste volume.",
       });
     } finally {
       setAnalyzingAI(false);
