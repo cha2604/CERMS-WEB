@@ -1,5 +1,7 @@
 
 import { useState, useRef } from "react";
+import * as tf from "@tensorflow/tfjs";
+import * as tmImage from "@teachablemachine/image";
 import { useNavigate } from "react-router-dom";
 import {
   FiArrowLeft,
@@ -43,245 +45,160 @@ type SeverityLevel =
 interface SeverityResult {
   level: SeverityLevel;
   explanation: string;
+  confidence?: number;
 }
 
-function analyzePictureSeverity(file: File): Promise<SeverityResult> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
+interface TeachableMachinePrediction {
+  className: string;
+  probability: number;
+}
 
-    reader.onload = (event) => {
-      const img = new Image();
+interface TeachableMachineModel {
+  predict(image: HTMLImageElement): Promise<TeachableMachinePrediction[]>;
+  getClassLabels(): string[];
+}
 
-      img.onload = () => {
-        try {
-          const canvas = document.createElement("canvas");
-          const maxSize = 300;
-          const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
+const MODEL_BASE_URL = `${import.meta.env.BASE_URL}models/waste-severity/`;
+const MINIMUM_PREDICTION_SCORE = 0.5;
 
-          canvas.width = Math.max(1, Math.round(img.width * scale));
-          canvas.height = Math.max(1, Math.round(img.height * scale));
+let severityModelPromise: Promise<TeachableMachineModel> | null = null;
 
-          const ctx = canvas.getContext("2d");
+async function loadSeverityModel(): Promise<TeachableMachineModel> {
+  if (!severityModelPromise) {
+    severityModelPromise = (async () => {
+      await tf.ready();
 
-          if (!ctx) {
-            throw new Error("Unable to analyze image.");
-          }
+      const model = (await tmImage.load(
+        `${MODEL_BASE_URL}model.json`,
+        `${MODEL_BASE_URL}metadata.json`
+      )) as unknown as TeachableMachineModel;
 
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const labels = model.getClassLabels().map((label) => label.trim());
+      const requiredLabels = [
+        "Low",
+        "Moderate",
+        "High",
+        "No Waste Detected",
+        "Not Waste",
+      ];
 
-          const imageData = ctx.getImageData(
-            0,
-            0,
-            canvas.width,
-            canvas.height
-          );
+      const hasAllLabels = requiredLabels.every((label) =>
+        labels.some((modelLabel) => modelLabel.toLowerCase() === label.toLowerCase())
+      );
 
-          const pixels = imageData.data;
-          const width = canvas.width;
-          const height = canvas.height;
-          const totalPixels = width * height;
+      if (!hasAllLabels) {
+        throw new Error(
+          `The exported model is missing one or more required classes. Found: ${labels.join(", ")}`
+        );
+      }
 
-          let wasteLikePixels = 0;
-          let darkPixels = 0;
-          let skinTonePixels = 0;
-          let centerSkinPixels = 0;
-          let centerPixels = 0;
-          let totalBrightness = 0;
-          let edgeComplexity = 0;
+      return model;
+    })().catch((error) => {
+      severityModelPromise = null;
+      throw error;
+    });
+  }
 
-          for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-              const index = (y * width + x) * 4;
-              const r = pixels[index];
-              const g = pixels[index + 1];
-              const b = pixels[index + 2];
+  return severityModelPromise;
+}
 
-              const brightness =
-                r * 0.299 + g * 0.587 + b * 0.114;
+function loadImageFromFile(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const imageUrl = URL.createObjectURL(file);
+    const image = new Image();
 
-              const maxChannel = Math.max(r, g, b);
-              const minChannel = Math.min(r, g, b);
-              const saturation =
-                maxChannel === 0
-                  ? 0
-                  : (maxChannel - minChannel) / maxChannel;
-
-              totalBrightness += brightness;
-
-              const isBrownOrEarthTone =
-                r > g &&
-                g > b &&
-                r - b > 12 &&
-                saturation < 0.8 &&
-                brightness > 25 &&
-                brightness < 235;
-
-              const isGrayOrNeutralMaterial =
-                Math.abs(r - g) < 32 &&
-                Math.abs(g - b) < 32 &&
-                brightness > 25 &&
-                brightness < 205;
-
-              const isDarkMaterial = brightness < 85;
-
-              const isColoredMaterial =
-                saturation > 0.28 &&
-                brightness > 25 &&
-                brightness < 225 &&
-                !(g > r * 1.18 && g > b * 1.18);
-
-              if (
-                isBrownOrEarthTone ||
-                isGrayOrNeutralMaterial ||
-                isDarkMaterial ||
-                isColoredMaterial
-              ) {
-                wasteLikePixels++;
-              }
-
-              if (brightness < 55) {
-                darkPixels++;
-              }
-
-              const isSkinTone =
-                r > 95 &&
-                g > 40 &&
-                b > 20 &&
-                r > g &&
-                r > b &&
-                r - g > 15 &&
-                r - b > 15 &&
-                saturation > 0.1 &&
-                saturation < 0.7 &&
-                brightness > 80;
-
-              if (isSkinTone) {
-                skinTonePixels++;
-              }
-
-              const inCenter =
-                x >= width * 0.2 &&
-                x <= width * 0.8 &&
-                y >= height * 0.08 &&
-                y <= height * 0.78;
-
-              if (inCenter) {
-                centerPixels++;
-
-                if (isSkinTone) {
-                  centerSkinPixels++;
-                }
-              }
-            }
-          }
-
-          for (let y = 0; y < height - 1; y++) {
-            for (let x = 0; x < width - 1; x++) {
-              const index = (y * width + x) * 4;
-              const right = index + 4;
-              const down = index + width * 4;
-
-              const horizontalDifference =
-                Math.abs(pixels[index] - pixels[right]) +
-                Math.abs(pixels[index + 1] - pixels[right + 1]) +
-                Math.abs(pixels[index + 2] - pixels[right + 2]);
-
-              const verticalDifference =
-                Math.abs(pixels[index] - pixels[down]) +
-                Math.abs(pixels[index + 1] - pixels[down + 1]) +
-                Math.abs(pixels[index + 2] - pixels[down + 2]);
-
-              if (
-                horizontalDifference > 55 ||
-                verticalDifference > 55
-              ) {
-                edgeComplexity++;
-              }
-            }
-          }
-
-          const wasteRatio = wasteLikePixels / totalPixels;
-          const darkRatio = darkPixels / totalPixels;
-          const edgeRatio =
-            edgeComplexity /
-            Math.max(1, (width - 1) * (height - 1));
-          const averageBrightness = totalBrightness / totalPixels;
-          const skinRatio = skinTonePixels / totalPixels;
-          const centerSkinRatio =
-            centerSkinPixels / Math.max(1, centerPixels);
-
-          const isAllBlack =
-            averageBrightness < 12 && darkRatio > 0.95;
-
-          const isLikelyFace =
-            skinRatio > 0.3 &&
-            centerSkinRatio > 0.4 &&
-            edgeRatio > 0.025 &&
-            edgeRatio < 0.4;
-
-          if (isAllBlack || isLikelyFace) {
-            resolve({
-              level: "None",
-              explanation:
-                "The image appears to be completely dark or may contain a face instead of a waste concern. Please capture a clear photo of the actual waste.",
-            });
-            return;
-          }
-
-          const coverageScore = wasteRatio * 65;
-          const textureScore = Math.min(edgeRatio / 0.35, 1) * 25;
-          const densityScore = darkRatio * 10;
-          const volumeScore = coverageScore + textureScore + densityScore;
-
-          if (volumeScore < 35) {
-            resolve({
-              level: "Low",
-              explanation:
-                "Automated visual assessment detected a relatively small amount of visible waste with limited accumulation.",
-            });
-          } else if (volumeScore < 60) {
-            resolve({
-              level: "Moderate",
-              explanation:
-                "Automated visual assessment detected noticeable waste accumulation and a moderate amount of visible debris.",
-            });
-          } else {
-            resolve({
-              level: "High",
-              explanation:
-                "Automated visual assessment detected extensive visible waste accumulation and significant clutter.",
-            });
-          }
-        } catch {
-          resolve({
-            level: "Low",
-            explanation:
-              "The image could not be fully analyzed. A Low severity estimate was assigned for initial review.",
-          });
-        }
-      };
-
-      img.onerror = () => {
-        resolve({
-          level: "Low",
-          explanation:
-            "The image could not be read. A Low severity estimate was assigned for initial review.",
-        });
-      };
-
-      img.src = event.target?.result as string;
+    image.onload = () => {
+      URL.revokeObjectURL(imageUrl);
+      resolve(image);
     };
 
-    reader.onerror = () => {
-      resolve({
-        level: "Low",
-        explanation:
-          "The image could not be read. A Low severity estimate was assigned for initial review.",
-      });
+    image.onerror = () => {
+      URL.revokeObjectURL(imageUrl);
+      reject(new Error("The captured photo could not be opened."));
     };
 
-    reader.readAsDataURL(file);
+    image.src = imageUrl;
   });
+}
+
+async function analyzePictureSeverity(file: File): Promise<SeverityResult> {
+  const [model, image] = await Promise.all([
+    loadSeverityModel(),
+    loadImageFromFile(file),
+  ]);
+
+  const predictions = await model.predict(image);
+
+  if (!predictions.length) {
+    throw new Error("The TensorFlow.js model returned no predictions.");
+  }
+
+  const bestPrediction = predictions.reduce((best, current) =>
+    current.probability > best.probability ? current : best
+  );
+
+  const className = bestPrediction.className.trim().toLowerCase();
+  const rawConfidence = bestPrediction.probability;
+
+  if (!Number.isFinite(rawConfidence)) {
+    throw new Error("The TensorFlow.js model returned an invalid prediction score.");
+  }
+
+  const confidence = Math.max(0, Math.min(1, rawConfidence));
+
+  if (confidence < MINIMUM_PREDICTION_SCORE) {
+    return {
+      level: "None",
+      confidence,
+      explanation:
+        "The model could not classify this photo with enough confidence. Please capture a clear photo focused on the waste concern.",
+    };
+  }
+
+  if (className === "low") {
+    return {
+      level: "Low",
+      confidence,
+      explanation:
+        "The TensorFlow.js image classification model predicted a Low level of visible waste accumulation.",
+    };
+  }
+
+  if (className === "moderate") {
+    return {
+      level: "Moderate",
+      confidence,
+      explanation:
+        "The TensorFlow.js image classification model predicted a Moderate level of visible waste accumulation.",
+    };
+  }
+
+  if (className === "high") {
+    return {
+      level: "High",
+      confidence,
+      explanation:
+        "The TensorFlow.js image classification model predicted a High level of visible waste accumulation.",
+    };
+  }
+
+  if (className === "no waste detected" || className === "not waste") {
+    return {
+      level: "None",
+      confidence,
+      explanation:
+        className === "no waste detected"
+          ? "The model classified this photo as having no visible waste. Please capture a location with an actual waste concern."
+          : "The model classified this image as not showing a waste concern. Please capture a clear photo of the reported waste.",
+    };
+  }
+
+  return {
+    level: "None",
+    confidence,
+    explanation:
+      `The model returned an unsupported class (${bestPrediction.className}). Please capture another photo of the waste concern.`,
+  };
 }
 
 function getSeverityClass(
@@ -343,6 +260,8 @@ export default function ReportIssue() {
   const [analyzingAI, setAnalyzingAI] =
     useState<boolean>(false);
 
+  const severityRequestRef = useRef(0);
+
   const [pictureSeverity, setPictureSeverity] =
     useState<SeverityResult | null>(null);
 
@@ -366,17 +285,30 @@ export default function ReportIssue() {
       : issueType;
 
   const processPictureAI = async (firstFile: File) => {
+    const requestId = ++severityRequestRef.current;
     setAnalyzingAI(true);
+    setPictureSeverity(null);
+
     try {
       const result = await analyzePictureSeverity(firstFile);
-      setPictureSeverity(result);
-    } catch {
-      setPictureSeverity({
-        level: "Low",
-        explanation: "AI scanned picture pixels & assessed low waste volume.",
-      });
+
+      if (requestId === severityRequestRef.current) {
+        setPictureSeverity(result);
+      }
+    } catch (error) {
+      console.error("TensorFlow.js severity assessment failed:", error);
+
+      if (requestId === severityRequestRef.current) {
+        setPictureSeverity({
+          level: "None",
+          explanation:
+            "The TensorFlow.js model could not analyze this photo. Check that the model files are present and try capturing the photo again.",
+        });
+      }
     } finally {
-      setAnalyzingAI(false);
+      if (requestId === severityRequestRef.current) {
+        setAnalyzingAI(false);
+      }
     }
   };
 
@@ -463,6 +395,8 @@ export default function ReportIssue() {
         updatedImages[0]
       );
     } else {
+      severityRequestRef.current += 1;
+      setAnalyzingAI(false);
       setPictureSeverity(
         null
       );
@@ -639,6 +573,22 @@ export default function ReportIssue() {
 
           return false;
         }
+
+        if (analyzingAI || !pictureSeverity) {
+          setErrorMessage(
+            "Please wait for the TensorFlow.js severity assessment to finish."
+          );
+
+          return false;
+        }
+
+        if (pictureSeverity.level === "None") {
+          setErrorMessage(
+            "The model did not identify a valid waste concern. Please capture a clear photo of the actual waste."
+          );
+
+          return false;
+        }
       }
 
       if (
@@ -755,7 +705,7 @@ export default function ReportIssue() {
         const draftSeverity =
           pictureSeverity
             ? pictureSeverity.level
-            : "Moderate";
+            : "None";
 
         const fullDraftLocationName =
           locationDetails.trim()
@@ -869,6 +819,22 @@ export default function ReportIssue() {
         return;
       }
 
+      if (analyzingAI || !pictureSeverity) {
+        setErrorMessage(
+          "Please wait for the TensorFlow.js severity assessment to finish."
+        );
+        setCurrentStep(3);
+        return;
+      }
+
+      if (pictureSeverity.level === "None") {
+        setErrorMessage(
+          "The model did not identify a valid waste concern. Please capture a clear photo of the actual waste."
+        );
+        setCurrentStep(3);
+        return;
+      }
+
       if (
         coords.lat ===
           null ||
@@ -917,10 +883,7 @@ export default function ReportIssue() {
             user.id
           );
 
-        const finalSeverity =
-          pictureSeverity
-            ? pictureSeverity.level
-            : "Moderate";
+        const finalSeverity = pictureSeverity.level;
 
         const fullLocationName =
           locationDetails.trim()
@@ -1437,7 +1400,7 @@ export default function ReportIssue() {
                   </p>
 
                   <p className="mt-1 text-xs leading-relaxed text-emerald-800">
-                    The captured photo is used by CERMS for the automated severity assessment.
+                    The captured photo is classified by the TensorFlow.js model to estimate the waste severity level.
                   </p>
                 </div>
               </div>
@@ -1446,7 +1409,7 @@ export default function ReportIssue() {
             {(analyzingAI || pictureSeverity) && (
               <div className="mt-5">
                 <label className="mb-2 block text-center text-xs font-extrabold text-slate-900">
-                  Automated Severity Assessment
+                  TensorFlow.js Severity Assessment
                 </label>
 
                 <div
@@ -1458,13 +1421,13 @@ export default function ReportIssue() {
                 >
                   <p className="text-[10px] font-extrabold uppercase tracking-wider opacity-70">
                     {analyzingAI
-                      ? "🤖 AI Scanning Picture Pixels..."
-                      : "AI Visual Assessment Model"}
+                      ? "Classifying Image with TensorFlow.js..."
+                      : "TensorFlow.js Image Classification"}
                   </p>
 
                   {analyzingAI ? (
                     <div className="py-2 text-xs font-bold text-amber-800 animate-pulse">
-                      Scanning image features & pixel density...
+                      The trained image model is processing the captured photo...
                     </div>
                   ) : (
                     pictureSeverity && (
@@ -1476,6 +1439,12 @@ export default function ReportIssue() {
                         <p className="mt-1 text-xs font-semibold leading-relaxed">
                           {pictureSeverity.explanation}
                         </p>
+
+                        {pictureSeverity.confidence !== undefined && (
+                          <p className="mt-2 text-[11px] font-bold opacity-75">
+                            Model prediction score: {(pictureSeverity.confidence * 100).toFixed(1)}%
+                          </p>
+                        )}
                       </>
                     )
                   )}
@@ -1664,7 +1633,7 @@ export default function ReportIssue() {
                   )}`}
                 >
                   <p className="text-xs font-black uppercase tracking-wide opacity-70">
-                    Automatically Detected Severity
+                    TensorFlow.js Severity Prediction
                   </p>
 
                   <div className="mt-2 flex items-center justify-between gap-4">
@@ -1680,11 +1649,17 @@ export default function ReportIssue() {
                           pictureSeverity.explanation
                         }
                       </p>
+
+                      {pictureSeverity.confidence !== undefined && (
+                        <p className="mt-2 text-[11px] font-bold opacity-75">
+                          Model prediction score: {(pictureSeverity.confidence * 100).toFixed(1)}%
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   <p className="mt-3 border-t border-current/10 pt-3 text-[11px] font-semibold opacity-70">
-                    Severity was automatically detected from the captured waste photo.
+                    The prediction is based on the exported TensorFlow.js image classification model.
                   </p>
                 </div>
               )}
