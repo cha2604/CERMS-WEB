@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -47,74 +48,153 @@ interface SeverityResult {
 function analyzePictureSeverity(file: File): Promise<SeverityResult> {
   return new Promise((resolve) => {
     const reader = new FileReader();
+
     reader.onload = (event) => {
       const img = new Image();
+
       img.onload = () => {
         try {
           const canvas = document.createElement("canvas");
-          const maxSize = 200;
+          const maxSize = 300;
           const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
-          canvas.width = Math.round(img.width * scale);
-          canvas.height = Math.round(img.height * scale);
+
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+
           const ctx = canvas.getContext("2d");
-          if (!ctx) throw new Error("No context");
 
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const pixels = imageData.data;
-
-          let totalPixels = canvas.width * canvas.height;
-          let wasteLikePixels = 0;
-          let darkPixels = 0;
-          let edgeComplexity = 0;
-          let totalBrightness = 0;
-          let skinTonePixels = 0;
-          let skyPixels = 0;
-
-          for (let i = 0; i < pixels.length; i += 4) {
-            const r = pixels[i];
-            const g = pixels[i + 1];
-            const b = pixels[i + 2];
-
-            const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
-            totalBrightness += brightness;
-
-            // Waste-like colors: browns, grays, dark greens, muted tones
-            const maxC = Math.max(r, g, b);
-            const minC = Math.min(r, g, b);
-            const saturation = maxC === 0 ? 0 : (maxC - minC) / maxC;
-            const isBrownish = r > g && g > b && r - b > 20 && saturation < 0.6;
-            const isGrayish = Math.abs(r - g) < 25 && Math.abs(g - b) < 25 && brightness < 180;
-            const isDarkGreen = g > r && g > b && brightness < 120;
-            const isDark = brightness < 80;
-
-            if (isBrownish || isGrayish || isDarkGreen || isDark) {
-              wasteLikePixels++;
-            }
-            if (isDark) darkPixels++;
-
-            // Skin tone detection (for selfies/faces)
-            const isSkinTone = r > 95 && g > 40 && b > 20 && r > g && r > b && (r - g) > 15 && (r - b) > 15 && saturation > 0.1 && saturation < 0.7 && brightness > 80;
-            if (isSkinTone) skinTonePixels++;
-
-            // Sky detection (blue dominant, high brightness)
-            const isSky = b > r && b > g && b > 150 && brightness > 150 && saturation > 0.2;
-            if (isSky) skyPixels++;
+          if (!ctx) {
+            throw new Error("Unable to analyze image.");
           }
 
-          // Edge complexity: compare adjacent pixel differences
-          for (let y = 0; y < canvas.height - 1; y++) {
-            for (let x = 0; x < canvas.width - 1; x++) {
-              const idx = (y * canvas.width + x) * 4;
-              const idxRight = (y * canvas.width + (x + 1)) * 4;
-              const idxDown = ((y + 1) * canvas.width + x) * 4;
-              const diffR = Math.abs(pixels[idx] - pixels[idxRight]);
-              const diffG = Math.abs(pixels[idx + 1] - pixels[idxRight + 1]);
-              const diffB = Math.abs(pixels[idx + 2] - pixels[idxRight + 2]);
-              const diffDownR = Math.abs(pixels[idx] - pixels[idxDown]);
-              const diffDownG = Math.abs(pixels[idx + 1] - pixels[idxDown + 1]);
-              const diffDownB = Math.abs(pixels[idx + 2] - pixels[idxDown + 2]);
-              if (diffR + diffG + diffB > 60 || diffDownR + diffDownG + diffDownB > 60) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          const imageData = ctx.getImageData(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          );
+
+          const pixels = imageData.data;
+          const width = canvas.width;
+          const height = canvas.height;
+          const totalPixels = width * height;
+
+          let wasteLikePixels = 0;
+          let darkPixels = 0;
+          let skinTonePixels = 0;
+          let centerSkinPixels = 0;
+          let centerPixels = 0;
+          let totalBrightness = 0;
+          let edgeComplexity = 0;
+
+          for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+              const index = (y * width + x) * 4;
+              const r = pixels[index];
+              const g = pixels[index + 1];
+              const b = pixels[index + 2];
+
+              const brightness =
+                r * 0.299 + g * 0.587 + b * 0.114;
+
+              const maxChannel = Math.max(r, g, b);
+              const minChannel = Math.min(r, g, b);
+              const saturation =
+                maxChannel === 0
+                  ? 0
+                  : (maxChannel - minChannel) / maxChannel;
+
+              totalBrightness += brightness;
+
+              const isBrownOrEarthTone =
+                r > g &&
+                g > b &&
+                r - b > 12 &&
+                saturation < 0.8 &&
+                brightness > 25 &&
+                brightness < 235;
+
+              const isGrayOrNeutralMaterial =
+                Math.abs(r - g) < 32 &&
+                Math.abs(g - b) < 32 &&
+                brightness > 25 &&
+                brightness < 205;
+
+              const isDarkMaterial = brightness < 85;
+
+              const isColoredMaterial =
+                saturation > 0.28 &&
+                brightness > 25 &&
+                brightness < 225 &&
+                !(g > r * 1.18 && g > b * 1.18);
+
+              if (
+                isBrownOrEarthTone ||
+                isGrayOrNeutralMaterial ||
+                isDarkMaterial ||
+                isColoredMaterial
+              ) {
+                wasteLikePixels++;
+              }
+
+              if (brightness < 55) {
+                darkPixels++;
+              }
+
+              const isSkinTone =
+                r > 95 &&
+                g > 40 &&
+                b > 20 &&
+                r > g &&
+                r > b &&
+                r - g > 15 &&
+                r - b > 15 &&
+                saturation > 0.1 &&
+                saturation < 0.7 &&
+                brightness > 80;
+
+              if (isSkinTone) {
+                skinTonePixels++;
+              }
+
+              const inCenter =
+                x >= width * 0.2 &&
+                x <= width * 0.8 &&
+                y >= height * 0.08 &&
+                y <= height * 0.78;
+
+              if (inCenter) {
+                centerPixels++;
+
+                if (isSkinTone) {
+                  centerSkinPixels++;
+                }
+              }
+            }
+          }
+
+          for (let y = 0; y < height - 1; y++) {
+            for (let x = 0; x < width - 1; x++) {
+              const index = (y * width + x) * 4;
+              const right = index + 4;
+              const down = index + width * 4;
+
+              const horizontalDifference =
+                Math.abs(pixels[index] - pixels[right]) +
+                Math.abs(pixels[index + 1] - pixels[right + 1]) +
+                Math.abs(pixels[index + 2] - pixels[right + 2]);
+
+              const verticalDifference =
+                Math.abs(pixels[index] - pixels[down]) +
+                Math.abs(pixels[index + 1] - pixels[down + 1]) +
+                Math.abs(pixels[index + 2] - pixels[down + 2]);
+
+              if (
+                horizontalDifference > 55 ||
+                verticalDifference > 55
+              ) {
                 edgeComplexity++;
               }
             }
@@ -122,55 +202,61 @@ function analyzePictureSeverity(file: File): Promise<SeverityResult> {
 
           const wasteRatio = wasteLikePixels / totalPixels;
           const darkRatio = darkPixels / totalPixels;
-          const edgeRatio = edgeComplexity / ((canvas.width - 1) * (canvas.height - 1));
-          const avgBrightness = totalBrightness / totalPixels;
+          const edgeRatio =
+            edgeComplexity /
+            Math.max(1, (width - 1) * (height - 1));
+          const averageBrightness = totalBrightness / totalPixels;
           const skinRatio = skinTonePixels / totalPixels;
-          const skyRatio = skyPixels / totalPixels;
+          const centerSkinRatio =
+            centerSkinPixels / Math.max(1, centerPixels);
 
-          // Check if image is NOT waste-related
-          const isSelfie = skinRatio > 0.08;
-          const isSky = skyRatio > 0.3;
-          const isAllBlack = avgBrightness < 25;
-          const isAllWhite = avgBrightness > 235;
-          const isUniform = edgeRatio < 0.08;
-          const hasNoWaste = wasteRatio < 0.2 && edgeRatio < 0.2;
+          const isAllBlack =
+            averageBrightness < 12 && darkRatio > 0.95;
 
-          if (isSelfie || isSky || isAllBlack || isAllWhite || isUniform || hasNoWaste) {
+          const isLikelyFace =
+            skinRatio > 0.3 &&
+            centerSkinRatio > 0.4 &&
+            edgeRatio > 0.025 &&
+            edgeRatio < 0.4;
+
+          if (isAllBlack || isLikelyFace) {
             resolve({
               level: "None",
-              explanation: "No waste detected. The image does not appear to contain waste or debris. Please capture a photo of the actual waste concern.",
+              explanation:
+                "The image appears to be completely dark or may contain a face instead of a waste concern. Please capture a clear photo of the actual waste.",
             });
             return;
           }
 
-          // Combine metrics: waste volume (ratio of waste-like pixels) is the primary driver.
-          const wasteRatioClamped = Math.min(wasteRatio, 1);
-          const edgeRatioClamped = Math.min(edgeRatio, 1);
-          const darkRatioClamped = Math.min(darkRatio, 1);
+          const coverageScore = wasteRatio * 65;
+          const textureScore = Math.min(edgeRatio / 0.35, 1) * 25;
+          const densityScore = darkRatio * 10;
+          const volumeScore = coverageScore + textureScore + densityScore;
 
-          // Volume score: waste pixels fill the frame (0-100).
-          const volumeScore = wasteRatioClamped * 70 + edgeRatioClamped * 20 + darkRatioClamped * 10;
-
-          if (volumeScore < 6) {
+          if (volumeScore < 35) {
             resolve({
               level: "Low",
-              explanation: "AI visual scan detected a small amount of waste with minimal clutter.",
+              explanation:
+                "Automated visual assessment detected a relatively small amount of visible waste with limited accumulation.",
             });
-          } else if (volumeScore < 15) {
+          } else if (volumeScore < 60) {
             resolve({
               level: "Moderate",
-              explanation: "AI visual scan detected a noticeable pile of waste with mixed debris.",
+              explanation:
+                "Automated visual assessment detected noticeable waste accumulation and a moderate amount of visible debris.",
             });
           } else {
             resolve({
               level: "High",
-              explanation: "AI visual scan detected a large volume of waste filling the frame, requiring priority action.",
+              explanation:
+                "Automated visual assessment detected extensive visible waste accumulation and significant clutter.",
             });
           }
         } catch {
           resolve({
             level: "Low",
-            explanation: "AI scanned picture pixels & assessed low waste volume.",
+            explanation:
+              "The image could not be fully analyzed. A Low severity estimate was assigned for initial review.",
           });
         }
       };
@@ -178,7 +264,8 @@ function analyzePictureSeverity(file: File): Promise<SeverityResult> {
       img.onerror = () => {
         resolve({
           level: "Low",
-          explanation: "AI scanned picture pixels & assessed low waste volume.",
+          explanation:
+            "The image could not be read. A Low severity estimate was assigned for initial review.",
         });
       };
 
@@ -188,7 +275,8 @@ function analyzePictureSeverity(file: File): Promise<SeverityResult> {
     reader.onerror = () => {
       resolve({
         level: "Low",
-        explanation: "AI scanned picture pixels & assessed low waste volume.",
+        explanation:
+          "The image could not be read. A Low severity estimate was assigned for initial review.",
       });
     };
 
@@ -551,8 +639,6 @@ export default function ReportIssue() {
 
           return false;
         }
-
-        // Allow proceeding regardless of severity (including None).
       }
 
       if (
@@ -783,8 +869,6 @@ export default function ReportIssue() {
         return;
       }
 
-      // Allow proceeding regardless of severity (including None).
-
       if (
         coords.lat ===
           null ||
@@ -895,35 +979,34 @@ export default function ReportIssue() {
           );
         }
 
-if (!data?.id) {
-        throw new Error(
-          "The report was not returned after submission."
-        );
-      }
-
-      // Notify admin users about the new report
-      try {
-        const { data: adminProfiles } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("role", "admin");
-
-        if (adminProfiles && adminProfiles.length > 0) {
-          const notifications = adminProfiles.map((admin) => ({
-            user_id: admin.id,
-            title: "New Waste Report Submitted",
-            message: `A new ${issueType} report has been submitted at ${locationName.trim() || "Barangay Tankulan"}.`,
-            type: "new_report",
-            link_url: `/report/${data.id}`,
-            is_read: false,
-            created_at: new Date().toISOString(),
-          }));
-
-          await supabase.from("notifications").insert(notifications);
+        if (!data?.id) {
+          throw new Error(
+            "The report was not returned after submission."
+          );
         }
-      } catch (notifError) {
-        console.error("Failed to send admin notification:", notifError);
-      }
+
+        try {
+          const { data: adminProfiles } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("role", "admin");
+
+          if (adminProfiles && adminProfiles.length > 0) {
+            const notifications = adminProfiles.map((admin) => ({
+              user_id: admin.id,
+              title: "New Waste Report Submitted",
+              message: `A new ${issueType} report has been submitted at ${locationName.trim() || "Barangay Tankulan"}.`,
+              type: "new_report",
+              link_url: `/report/${data.id}`,
+              is_read: false,
+              created_at: new Date().toISOString(),
+            }));
+
+            await supabase.from("notifications").insert(notifications);
+          }
+        } catch (notifError) {
+          console.error("Failed to send admin notification:", notifError);
+        }
 
         previews.forEach(
           (url) =>
@@ -1303,41 +1386,41 @@ if (!data?.id) {
               </span>
             </button>
 
-            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleCameraCapture(file); e.target.value = ""; }} />
-{previews.length >
-              0 && (
-              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {previews.map(
-                  (
-                    src,
-                    index
-                  ) => (
-                    <div
-                      key={`${src}-${index}`}
-                      className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100"
-                    >
-                      <img
-                        src={src}
-                        alt={`Captured waste ${index + 1}`}
-                        className="h-40 w-full object-cover"
-                      />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleCameraCapture(file);
+                e.target.value = "";
+              }}
+            />
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          removeImage(
-                            index
-                          )
-                        }
-                        className="absolute right-2 top-2 rounded-full bg-black/70 p-2 text-white transition hover:bg-black"
-                      >
-                        <FiX
-                          size={14}
-                        />
-                      </button>
-                    </div>
-                  )
-                )}
+            {previews.length > 0 && (
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {previews.map((src, index) => (
+                  <div
+                    key={`${src}-${index}`}
+                    className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100"
+                  >
+                    <img
+                      src={src}
+                      alt={`Captured waste ${index + 1}`}
+                      className="h-40 w-full object-cover"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => removeImage(index)}
+                      className="absolute right-2 top-2 rounded-full bg-black/70 p-2 text-white transition hover:bg-black"
+                    >
+                      <FiX size={14} />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -1360,8 +1443,7 @@ if (!data?.id) {
               </div>
             </div>
 
-            {(analyzingAI ||
-              pictureSeverity) && (
+            {(analyzingAI || pictureSeverity) && (
               <div className="mt-5">
                 <label className="mb-2 block text-center text-xs font-extrabold text-slate-900">
                   Automated Severity Assessment
@@ -1370,9 +1452,7 @@ if (!data?.id) {
                 <div
                   className={`rounded-2xl border p-4 text-center ${
                     pictureSeverity
-                      ? getSeverityClass(
-                          pictureSeverity.level
-                        )
+                      ? getSeverityClass(pictureSeverity.level)
                       : "bg-slate-50 border-slate-200 text-slate-800"
                   }`}
                 >
@@ -1390,15 +1470,11 @@ if (!data?.id) {
                     pictureSeverity && (
                       <>
                         <h4 className="mt-1 text-lg font-black">
-                          {
-                            pictureSeverity.level
-                          }
+                          {pictureSeverity.level}
                         </h4>
 
                         <p className="mt-1 text-xs font-semibold leading-relaxed">
-                          {
-                            pictureSeverity.explanation
-                          }
+                          {pictureSeverity.explanation}
                         </p>
                       </>
                     )
